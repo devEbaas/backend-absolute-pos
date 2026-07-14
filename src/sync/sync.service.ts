@@ -79,9 +79,31 @@ export class SyncService {
     const result: Record<PullableTable, unknown[]> = { products: [] };
     for (const [table, ids] of idsByTable) {
       if (table === 'products') {
-        result.products = await this.prisma.product.findMany({
+        const rows = await this.prisma.product.findMany({
           where: { id: { in: [...ids] } },
         });
+        // Misma forma que el DTO de push (uuid/parentProductUuid), no los
+        // nombres internos id/parentProductId de Postgres — el cliente no
+        // debería tener que hablar dos "idiomas" distintos según la
+        // dirección. Los Decimal de Prisma se convierten a number
+        // explícitamente en vez de dejar que su toJSON() los serialice
+        // como string.
+        result.products = rows.map((row) => ({
+          uuid: row.id,
+          barcode: row.barcode,
+          name: row.name,
+          description: row.description,
+          salePrice: Number(row.salePrice),
+          purchaseCost: Number(row.purchaseCost),
+          tipoVenta: row.tipoVenta,
+          imagePath: row.imagePath,
+          active: row.active,
+          parentProductUuid: row.parentProductId,
+          unitsPerPack: Number(row.unitsPerPack),
+          location: row.location,
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
+        }));
       }
     }
 
