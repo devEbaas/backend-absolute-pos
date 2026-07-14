@@ -1,7 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { version } = require('../../../package.json');
+const { version } = require('../../../package.json') as { version: string };
 
 @ApiTags('health')
 @Controller('health')
