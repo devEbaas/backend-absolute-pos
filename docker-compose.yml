@@ -1,0 +1,60 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      # Host-only, for local `npx prisma` commands and psql access. Not
+      # 5432 — that's already taken by another Postgres install on this
+      # machine. The `api` service talks to this container over the
+      # internal docker network (postgres:5432) regardless of this
+      # mapping.
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      MASTER_API_KEY: ${MASTER_API_KEY}
+      PORT: 3000
+    ports:
+      # Bound to localhost only — not reachable from outside the VPS.
+      # Public access goes through Caddy (80/443) below. Kept mapped so
+      # `curl 127.0.0.1:3000/health` / local migration debugging works
+      # without going through TLS.
+      - "127.0.0.1:3000:3000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      DOMAIN_API: ${DOMAIN_API}
+      DOMAIN_WEB: ${DOMAIN_WEB}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

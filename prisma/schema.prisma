@@ -1,0 +1,334 @@
+// Prisma schema for the absolute-pos cloud backend.
+// Mirrors the local SQLite schema of absolute-electron-pos for syncable
+// entities. IDs on synced tables are the client-generated UUIDs from the
+// Electron app (see migration v14 there) — never Postgres-generated —
+// so a row's identity is stable across both databases without a mapping
+// table. Business-native entities (Business, Device, SyncLogEntry) use
+// Postgres-generated UUIDs since they never originate on a device.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------
+// Tenancy
+// ---------------------------------------------------------------------
+
+model Business {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  devices            Device[]
+  users              User[]
+  products           Product[]
+  sales              Sale[]
+  cashSessions       CashSession[]
+  inventoryMovements InventoryMovement[]
+  promotions         Promotion[]
+  settings           BusinessSetting[]
+  syncLogEntries     SyncLogEntry[]
+
+  @@map("businesses")
+}
+
+model Device {
+  id         String    @id @default(uuid()) @db.Uuid
+  businessId String    @map("business_id") @db.Uuid
+  business   Business  @relation(fields: [businessId], references: [id])
+  label      String
+  apiKeyHash String    @unique @map("api_key_hash")
+  lastSeenAt DateTime? @map("last_seen_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  sales Sale[]
+
+  @@index([businessId])
+  @@map("devices")
+}
+
+// Cashier identity, synced from the local `users` table for attribution
+// in reports (sales.user_id, cash_sessions.user_id, ...). Never carries
+// password_hash/reset_code — local login stays entirely local.
+model User {
+  id         String   @id @db.Uuid
+  businessId String   @map("business_id") @db.Uuid
+  business   Business @relation(fields: [businessId], references: [id])
+  name       String
+  username   String
+  role       String   @default("cashier")
+  active     Boolean  @default(true)
+  createdAt  DateTime @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  sales              Sale[]
+  cashSessions       CashSession[]
+  cashCuts           CashCut[]
+  cashOutflows       CashOutflow[]
+  inventoryMovements InventoryMovement[]
+  cancellations      SaleCancellation[]
+
+  @@unique([businessId, username])
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------
+// Catalog
+// ---------------------------------------------------------------------
+
+// `stock` is deliberately NOT a column here — current stock is derived
+// as SUM(inventory_movements) on both sides, never synced as a mutable
+// authoritative value (avoids cross-device conflict on a running total).
+model Product {
+  id              String   @id @db.Uuid
+  businessId      String   @map("business_id") @db.Uuid
+  business        Business @relation(fields: [businessId], references: [id])
+  barcode         String?
+  name            String
+  description     String?
+  salePrice       Decimal  @map("sale_price") @db.Decimal(12, 2)
+  purchaseCost    Decimal  @map("purchase_cost") @db.Decimal(12, 2)
+  tipoVenta       String   @default("UNIDAD") @map("tipo_venta")
+  imagePath       String?  @map("image_path")
+  active          Boolean  @default(true)
+  parentProductId String?  @map("parent_product_id") @db.Uuid
+  parentProduct   Product? @relation("ProductParent", fields: [parentProductId], references: [id])
+  childProducts   Product[] @relation("ProductParent")
+  unitsPerPack    Decimal  @default(1) @map("units_per_pack") @db.Decimal(12, 4)
+  location        String?
+  createdAt       DateTime @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  saleItems          SaleItem[]
+  inventoryMovements InventoryMovement[]
+  promotionProducts  PromotionProduct[]
+
+  @@unique([businessId, barcode])
+  @@index([businessId])
+  @@map("products")
+}
+
+model Promotion {
+  id               String   @id @db.Uuid
+  businessId       String   @map("business_id") @db.Uuid
+  business         Business @relation(fields: [businessId], references: [id])
+  name             String
+  type             String   @default("GROUP")
+  requiredQuantity Int      @default(2) @map("required_quantity")
+  discountType     String   @default("FIXED_AMOUNT") @map("discount_type")
+  discountValue    Decimal  @default(0) @map("discount_value") @db.Decimal(12, 2)
+  freeQuantity     Int      @default(0) @map("free_quantity")
+  active           Boolean  @default(true)
+  createdAt        DateTime @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  products PromotionProduct[]
+
+  @@index([businessId])
+  @@map("promotions")
+}
+
+// Join table — synced as "replace the full set for this promotion" on
+// every push, not as individually tombstoned rows (mirrors how the local
+// app already treats it: delete + reinsert whenever the product list
+// changes).
+model PromotionProduct {
+  id          String    @id @default(uuid()) @db.Uuid
+  promotionId String    @map("promotion_id") @db.Uuid
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  productId   String    @map("product_id") @db.Uuid
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([promotionId, productId])
+  @@map("promotion_products")
+}
+
+// ---------------------------------------------------------------------
+// Sales
+// ---------------------------------------------------------------------
+
+model Sale {
+  id                 String       @id @db.Uuid
+  businessId         String       @map("business_id") @db.Uuid
+  business           Business     @relation(fields: [businessId], references: [id])
+  deviceId           String?      @map("device_id") @db.Uuid
+  device             Device?      @relation(fields: [deviceId], references: [id])
+  userId             String       @map("user_id") @db.Uuid
+  user               User         @relation(fields: [userId], references: [id])
+  total              Decimal      @db.Decimal(12, 2)
+  paymentMethod      String       @map("payment_method")
+  registerId         String       @default("PRINCIPAL") @map("register_id")
+  sessionId          String?      @map("session_id") @db.Uuid
+  session            CashSession? @relation(fields: [sessionId], references: [id])
+  cancelled          Boolean      @default(false)
+  cancelledAt        DateTime?    @map("cancelled_at")
+  cancelledBy        String?      @map("cancelled_by") @db.Uuid
+  cancellationReason String?      @map("cancellation_reason")
+  discountAmount     Decimal      @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  createdAt          DateTime     @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
+
+  items         SaleItem[]
+  cancellations SaleCancellation[]
+
+  @@index([businessId, createdAt])
+  @@map("sales")
+}
+
+model SaleItem {
+  id                String  @id @db.Uuid
+  saleId            String  @map("sale_id") @db.Uuid
+  sale              Sale    @relation(fields: [saleId], references: [id])
+  productId         String  @map("product_id") @db.Uuid
+  product           Product @relation(fields: [productId], references: [id])
+  quantity          Decimal @db.Decimal(12, 4)
+  unitPrice         Decimal @map("unit_price") @db.Decimal(12, 2)
+  subtotal          Decimal @db.Decimal(12, 2)
+  linkedProductName String? @map("linked_product_name")
+
+  @@index([saleId])
+  @@map("sale_items")
+}
+
+model SaleCancellation {
+  id              String   @id @db.Uuid
+  saleId          String   @map("sale_id") @db.Uuid
+  sale            Sale     @relation(fields: [saleId], references: [id])
+  cancelledBy     String   @map("cancelled_by") @db.Uuid
+  cancelledByUser User     @relation(fields: [cancelledBy], references: [id])
+  reason          String?
+  notes           String?
+  createdAt       DateTime @map("created_at")
+
+  @@map("sale_cancellations")
+}
+
+// ---------------------------------------------------------------------
+// Cash management
+// ---------------------------------------------------------------------
+
+model CashSession {
+  id            String    @id @db.Uuid
+  businessId    String    @map("business_id") @db.Uuid
+  business      Business  @relation(fields: [businessId], references: [id])
+  userId        String    @map("user_id") @db.Uuid
+  user          User      @relation(fields: [userId], references: [id])
+  openingAmount Decimal   @default(0) @map("opening_amount") @db.Decimal(12, 2)
+  status        String    @default("open")
+  registerId    String    @default("PRINCIPAL") @map("register_id")
+  openedAt      DateTime  @map("opened_at")
+  closedAt      DateTime? @map("closed_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  sales    Sale[]
+  cuts     CashCut[]
+  outflows CashOutflow[]
+
+  @@index([businessId])
+  @@map("cash_sessions")
+}
+
+model CashCut {
+  id                   String      @id @db.Uuid
+  sessionId            String      @map("session_id") @db.Uuid
+  session              CashSession @relation(fields: [sessionId], references: [id])
+  userId               String      @map("user_id") @db.Uuid
+  user                 User        @relation(fields: [userId], references: [id])
+  cutType              String      @default("total") @map("cut_type")
+  openingAmount        Decimal     @default(0) @map("opening_amount") @db.Decimal(12, 2)
+  totalCashSales       Decimal     @default(0) @map("total_cash_sales") @db.Decimal(12, 2)
+  totalCardSales       Decimal     @default(0) @map("total_card_sales") @db.Decimal(12, 2)
+  totalOtherSales      Decimal     @default(0) @map("total_other_sales") @db.Decimal(12, 2)
+  totalSales           Decimal     @default(0) @map("total_sales") @db.Decimal(12, 2)
+  totalCancelledAmount Decimal     @default(0) @map("total_cancelled_amount") @db.Decimal(12, 2)
+  cancelledCount       Int         @default(0) @map("cancelled_count")
+  expectedCash         Decimal     @default(0) @map("expected_cash") @db.Decimal(12, 2)
+  actualCash           Decimal?    @map("actual_cash") @db.Decimal(12, 2)
+  cashDifference       Decimal?    @map("cash_difference") @db.Decimal(12, 2)
+  transactionCount     Int         @default(0) @map("transaction_count")
+  totalOutflows        Decimal     @default(0) @map("total_outflows") @db.Decimal(12, 2)
+  outflowCount         Int         @default(0) @map("outflow_count")
+  notes                String?
+  createdAt            DateTime    @map("created_at")
+
+  @@index([sessionId])
+  @@map("cash_cuts")
+}
+
+model CashOutflow {
+  id         String      @id @db.Uuid
+  sessionId  String      @map("session_id") @db.Uuid
+  session    CashSession @relation(fields: [sessionId], references: [id])
+  userId     String      @map("user_id") @db.Uuid
+  user       User        @relation(fields: [userId], references: [id])
+  amount     Decimal     @db.Decimal(12, 2)
+  reason     String
+  createdAt  DateTime    @map("created_at")
+
+  @@index([sessionId])
+  @@map("cash_outflows")
+}
+
+// ---------------------------------------------------------------------
+// Inventory — append-only event log, the sync primitive for stock
+// ---------------------------------------------------------------------
+
+model InventoryMovement {
+  id                String   @id @db.Uuid
+  businessId        String   @map("business_id") @db.Uuid
+  business          Business @relation(fields: [businessId], references: [id])
+  productId         String   @map("product_id") @db.Uuid
+  product           Product  @relation(fields: [productId], references: [id])
+  type              String
+  quantity          Decimal  @db.Decimal(12, 4)
+  reference         String?
+  referenceId       String?  @map("reference_id") @db.Uuid
+  linkedProductName String?  @map("linked_product_name")
+  userId            String?  @map("user_id") @db.Uuid
+  user              User?    @relation(fields: [userId], references: [id])
+  createdAt         DateTime @map("created_at")
+
+  @@index([businessId, productId])
+  @@map("inventory_movements")
+}
+
+// ---------------------------------------------------------------------
+// Settings — curated allowlist only (never the local key/value table
+// wholesale: that table also holds secrets like network_api_key /
+// jwt_secret / cloud_device_api_key which must never leave the device).
+// ---------------------------------------------------------------------
+
+model BusinessSetting {
+  id         String   @id @default(uuid()) @db.Uuid
+  businessId String   @map("business_id") @db.Uuid
+  business   Business @relation(fields: [businessId], references: [id])
+  key        String
+  value      String?
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([businessId, key])
+  @@map("business_settings")
+}
+
+// ---------------------------------------------------------------------
+// Sync bookkeeping — a global, monotonic change feed used as the pull
+// cursor (GET /sync/pull?since=<seq>). Timestamps are used for
+// last-write-wins conflict resolution, never for pagination, since
+// clocks across devices aren't trustworthy enough for that.
+// ---------------------------------------------------------------------
+
+model SyncLogEntry {
+  seq        BigInt   @id @default(autoincrement())
+  businessId String   @map("business_id") @db.Uuid
+  business   Business @relation(fields: [businessId], references: [id])
+  tableName  String   @map("table_name")
+  rowId      String   @map("row_id") @db.Uuid
+  occurredAt DateTime @default(now()) @map("occurred_at")
+
+  @@index([businessId, seq])
+  @@map("sync_log")
+}
