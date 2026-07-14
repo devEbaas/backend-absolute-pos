@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SyncResource } from '../sync/sync-resource.interface';
+import { upsertMutable } from '../sync/upsert-helpers';
 import { ProductSyncItemDto } from '../sync/dto/product-sync-item.dto';
 
 @Injectable()
-export class ProductsService {
+export class ProductsService implements SyncResource<ProductSyncItemDto> {
+  readonly tableName = 'products';
+
   constructor(private readonly prisma: PrismaService) {}
 
   findMany(businessId: string) {
@@ -13,6 +17,31 @@ export class ProductsService {
     });
   }
 
+  findManyByIds(ids: string[]) {
+    return this.prisma.product.findMany({ where: { id: { in: ids } } });
+  }
+
+  toPullDto(
+    row: Awaited<ReturnType<ProductsService['findManyByIds']>>[number],
+  ) {
+    return {
+      uuid: row.id,
+      barcode: row.barcode,
+      name: row.name,
+      description: row.description,
+      salePrice: Number(row.salePrice),
+      purchaseCost: Number(row.purchaseCost),
+      tipoVenta: row.tipoVenta,
+      imagePath: row.imagePath,
+      active: row.active,
+      parentProductUuid: row.parentProductId,
+      unitsPerPack: Number(row.unitsPerPack),
+      location: row.location,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+
   // Single write path for products, shared by the sync push endpoint and
   // (eventually) any direct product-creation endpoint — see the plan's
   // "single write path per resource" requirement. Idempotent by uuid
@@ -20,23 +49,17 @@ export class ProductsService {
   // updatedAt for conflicting concurrent edits from different devices.
   async upsertFromSync(
     businessId: string,
+    _deviceId: string,
     dto: ProductSyncItemDto,
   ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
-      const existing = await tx.product.findUnique({ where: { id: dto.uuid } });
-
       // El padre puede no haber llegado todavía a la nube si el batch no
-      // respeta el orden padre-antes-que-hijo (o si el push del padre aún
-      // no ocurrió desde el dispositivo origen). Dejarlo en null es
-      // seguro — se resuelve solo en un push/pull posterior una vez que
-      // el padre exista, en vez de fallar el batch completo.
-      let parentProductId: string | null = null;
-      if (dto.parentProductUuid) {
-        const parent = await tx.product.findUnique({
-          where: { id: dto.parentProductUuid },
-        });
-        parentProductId = parent?.id ?? null;
-      }
+      // respeta el orden padre-antes-que-hijo. Dejarlo en null es seguro —
+      // se resuelve solo en un push/pull posterior una vez que el padre
+      // exista, en vez de fallar el batch completo.
+      const parent = dto.parentProductUuid
+        ? await tx.product.findUnique({ where: { id: dto.parentProductUuid } })
+        : null;
 
       const fields = {
         businessId,
@@ -48,37 +71,22 @@ export class ProductsService {
         tipoVenta: dto.tipoVenta,
         imagePath: dto.imagePath ?? null,
         active: dto.active,
-        parentProductId,
+        parentProductId: parent?.id ?? null,
         unitsPerPack: dto.unitsPerPack,
         location: dto.location ?? null,
         createdAt: new Date(dto.createdAt),
         updatedAt: new Date(dto.updatedAt),
       };
 
-      if (!existing) {
-        const created = await tx.product.create({
-          data: { id: dto.uuid, ...fields },
-        });
-        await tx.syncLogEntry.create({
-          data: { businessId, tableName: 'products', rowId: created.id },
-        });
-        return;
-      }
-
-      if (new Date(dto.updatedAt).getTime() <= existing.updatedAt.getTime()) {
-        // Last-write-wins: lo que ya está en la nube es igual o más
-        // reciente que lo que llegó — no se aplica, pero tampoco es un
-        // error (el push sigue siendo "aceptado").
-        return;
-      }
-
-      const updated = await tx.product.update({
-        where: { id: dto.uuid },
-        data: fields,
-      });
-      await tx.syncLogEntry.create({
-        data: { businessId, tableName: 'products', rowId: updated.id },
-      });
+      await upsertMutable(
+        tx,
+        tx.product,
+        businessId,
+        'products',
+        dto.uuid,
+        fields,
+        new Date(dto.updatedAt),
+      );
     });
   }
 }

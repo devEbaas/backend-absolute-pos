@@ -22,7 +22,7 @@ export class SyncController {
 
   @Post('push')
   push(@Req() req: Request, @Body() body: SyncPushDto) {
-    return this.sync.push(req.device!.businessId, body);
+    return this.sync.push(req.device!.businessId, req.device!.id, body);
   }
 
   @Get('pull')
