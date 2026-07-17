@@ -1,11 +1,12 @@
 # absolute-pos-backend
 
 Cloud backend (NestJS + PostgreSQL) for [absolute-electron-pos](https://github.com/).
-Provides remote sync for the local Electron POS installs, plus the API that will back
-a future stats dashboard and mobile app.
+Provides remote sync for the local Electron POS installs, the admin API that backs
+[`pos-root-dashboard`](../pos-root-dashboard) (businesses, devices, pairing), and will
+back a future mobile app.
 
-See `DEPLOY.md` for bootstrapping the first business/device against a Postgres you
-provide — no deployment mechanism decided yet.
+See `DEPLOY.md` for bootstrapping the first platform admin / business / device against a
+Postgres you provide.
 
 ## Local development
 

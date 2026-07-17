@@ -23,9 +23,16 @@ usa `environment: Production`):
 | `SERVER_SSH_KEY` | Secret | Clave privada SSH con acceso a ese usuario — los Secrets no se comparten entre repos, aunque sea el mismo VPS hay que volver a cargarla aquí |
 | `DATABASE_URL` | Secret | Cadena de conexión a Postgres — puede ser una base `absolute_pos` nueva en el mismo Postgres que usa mayan-transfer-backend, o uno aparte |
 | `MASTER_API_KEY` | Secret | `openssl rand -hex 32` — nueva, no reutilizar la de otro proyecto |
-| `JWT_SECRET` | Secret | `openssl rand -hex 32` — nueva |
+| `JWT_SECRET` | Secret | `openssl rand -hex 32` — nueva. Firma tanto los JWT de cajero (`/auth/login`) como los de platform admin (`/platform-admin/login`), ver `PlatformAdminGuard` |
 | `NODE_ENV` | Variable | `production` |
 | `PORT` | Variable | Puerto libre en ese VPS (ej. `3001` si 3000 ya está tomado) |
+| `DASHBOARD_ORIGINS` | Variable | Origen(es) HTTPS de `pos-root-dashboard`, separados por coma (ej. `https://dashboard.tu-dominio.com`). Sin esto, CORS queda deshabilitado y el dashboard no puede llamar la API desde el navegador |
+
+**Prerrequisito para el dashboard:** un navegador bloquea fetch desde una página HTTPS hacia
+una API HTTP plana (mixed content). Mientras este backend no tenga reverse proxy con TLS
+(ver sección "Sin reverse proxy todavía" arriba), `pos-root-dashboard` no podrá hablarle en
+producción aunque CORS esté bien configurado — hace falta Nginx/Caddy + Let's Encrypt con
+un dominio real antes de desplegar el dashboard.
 
 ## Ejecutar localmente
 
@@ -44,7 +51,27 @@ npm run start:dev   # o: npm run build && npm run start:prod
 curl http://localhost:3000/health
 ```
 
-## Dar de alta el primer negocio + emparejar una caja
+## Bootstrap de platform admin (una sola vez)
+
+`pos-root-dashboard` es el flujo principal para dar de alta negocios y dispositivos —
+los curls con `MASTER_API_KEY` de abajo quedan como fallback/debug, no como el camino
+esperado día a día. Antes de usar el dashboard, crea tu propio usuario de operador con la
+master key (esto no se hace nunca desde el dashboard, que no la conoce):
+
+```bash
+MASTER_KEY="<valor de MASTER_API_KEY en .env>"
+BASE="http://localhost:3000"
+
+curl -s -X POST $BASE/admin/platform-admins \
+  -H "Authorization: Bearer $MASTER_KEY" -H "Content-Type: application/json" \
+  -d '{"name":"Eduardo","username":"eduardo","password":"<password real>"}'
+```
+
+Con eso ya puedes loguearte en `pos-root-dashboard` (`POST /platform-admin/login`) y crear
+negocios, pairing codes y colegas admin (`POST /platform-admins`, ya autenticado) sin volver
+a tocar la master key. Ver `PlatformAdminGuard`/`AdminAccessGuard` en `src/common/guards/`.
+
+## Dar de alta el primer negocio + emparejar una caja (fallback manual)
 
 ```bash
 MASTER_KEY="<valor de MASTER_API_KEY en .env>"
@@ -56,10 +83,13 @@ curl -s -X POST $BASE/admin/businesses \
   -d '{"name":"Mi Negocio","slug":"mi-negocio"}'
 # -> { "id": "<businessId>", "slug": "mi-negocio", ... }
 
-# 2. Generar un código de emparejamiento de un solo uso (expira en 30 min)
+# 2. Generar un código de emparejamiento de un solo uso (expira en 30 min).
+#    deviceType es opcional ("desktop" | "mobile", default "desktop") — lo
+#    elige quien genera el código, no el dispositivo que empareja después.
 curl -s -X POST $BASE/admin/businesses/<businessId>/devices/pairing-codes \
-  -H "Authorization: Bearer $MASTER_KEY"
-# -> { "code": "A1B2C3D4E5", "expiresAt": "..." }
+  -H "Authorization: Bearer $MASTER_KEY" -H "Content-Type: application/json" \
+  -d '{"deviceType":"desktop"}'
+# -> { "code": "A1B2C3D4E5", "platform": "desktop", "expiresAt": "..." }
 
 # 3. Desde el wizard de primer arranque del desktop (o por curl para probar):
 #    slug + código + nombre de caja -> device api key propio, sin master key.

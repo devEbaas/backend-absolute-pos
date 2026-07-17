@@ -9,20 +9,21 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { MasterKeyGuard } from '../common/guards/master-key.guard';
+import { AdminAccessGuard } from '../common/guards/admin-access.guard';
 import { DeviceAuthGuard } from '../common/guards/device-auth.guard';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { AdminRoleGuard } from '../common/guards/admin-role.guard';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 
-// Bootstraps the first cloud-native login (admin) for a business — no JWT
-// exists yet at that point, so this is master-key gated like the
+// Bootstraps the first cloud-native login (admin) for a business — no
+// business JWT exists yet at that point, so this is gated by
+// AdminAccessGuard (master key or platform-admin JWT), like the
 // businesses/devices admin endpoints. Day-to-day cashier creation goes
 // through POST /users below instead.
 @ApiTags('admin/users')
 @ApiBearerAuth('bearer')
-@UseGuards(MasterKeyGuard)
+@UseGuards(AdminAccessGuard)
 @Controller('admin/businesses/:businessId/users')
 export class UsersAdminController {
   constructor(private readonly users: UsersService) {}

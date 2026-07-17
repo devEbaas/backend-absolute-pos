@@ -2,15 +2,16 @@ import { Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { Body } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { MasterKeyGuard } from '../common/guards/master-key.guard';
+import { AdminAccessGuard } from '../common/guards/admin-access.guard';
 import { DeviceAuthGuard } from '../common/guards/device-auth.guard';
 import { DevicesService } from './devices.service';
 import { CreateDeviceDto } from './dto/create-device.dto';
 import { PairDeviceDto } from './dto/pair-device.dto';
+import { CreatePairingCodeDto } from './dto/create-pairing-code.dto';
 
 @ApiTags('admin/devices')
 @ApiBearerAuth('bearer')
-@UseGuards(MasterKeyGuard)
+@UseGuards(AdminAccessGuard)
 @Controller('admin/businesses/:businessId/devices')
 export class DevicesAdminController {
   constructor(private readonly devices: DevicesService) {}
@@ -28,13 +29,35 @@ export class DevicesAdminController {
     return this.devices.findAllForBusiness(businessId);
   }
 
-  // Genera el código que el root_admin de la nueva caja va a capturar en el
-  // wizard, junto al slug del negocio — alternativa al apiKey en texto plano
-  // de arriba, pensada para dar de alta cajas sin que el operador tenga que
-  // correr un curl con la master key por cada instalación.
+  // Genera el código que el root_admin de la nueva caja (o el usuario del
+  // celular) va a capturar/escanear, junto al slug del negocio — alternativa
+  // al apiKey en texto plano de arriba, pensada para dar de alta
+  // dispositivos desde pos-root-dashboard sin repetir la master key.
   @Post('pairing-codes')
-  createPairingCode(@Param('businessId') businessId: string) {
-    return this.devices.createPairingCode(businessId);
+  createPairingCode(
+    @Param('businessId') businessId: string,
+    @Body() dto: CreatePairingCodeDto,
+  ) {
+    return this.devices.createPairingCode(businessId, dto);
+  }
+
+  // Historial de códigos generados para este negocio (activos, usados y
+  // expirados) — para que el dashboard los liste, no solo el que se acaba
+  // de crear.
+  @Get('pairing-codes')
+  findPairingCodes(@Param('businessId') businessId: string) {
+    return this.devices.findPairingCodes(businessId);
+  }
+
+  // Invalida el device sin borrar su historial de ventas — DeviceAuthGuard
+  // rechaza cualquier request suyo desde este momento (ver revokedAt en
+  // devices.service.ts y el chequeo agregado ahí).
+  @Post(':deviceId/revoke')
+  revoke(
+    @Param('businessId') businessId: string,
+    @Param('deviceId') deviceId: string,
+  ) {
+    return this.devices.revoke(businessId, deviceId);
   }
 }
 

@@ -54,6 +54,7 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MASTER_API_KEY: ${{ secrets.MASTER_API_KEY }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          DASHBOARD_ORIGINS: ${{ vars.DASHBOARD_ORIGINS }}
         run: |
           cat > deploy.env <<ENVEOF
           NODE_ENV=$NODE_ENV
@@ -63,6 +64,8 @@ jobs:
 
           MASTER_API_KEY=$MASTER_API_KEY
           JWT_SECRET=$JWT_SECRET
+
+          DASHBOARD_ORIGINS=$DASHBOARD_ORIGINS
           ENVEOF
           rsync -az deploy.env ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/absolute-pos-backend/.env
           rm -f deploy.env

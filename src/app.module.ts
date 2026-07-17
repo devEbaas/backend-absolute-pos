@@ -11,12 +11,14 @@ import { UsersModule } from './users/users.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { CashModule } from './cash/cash.module';
 import { SalesModule } from './sales/sales.module';
+import { PlatformAdminsModule } from './platform-admins/platform-admins.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
     HealthModule,
+    PlatformAdminsModule,
     BusinessesModule,
     DevicesModule,
     ProductsModule,

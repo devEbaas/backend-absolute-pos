@@ -34,7 +34,7 @@ export class SyncGateway implements OnGatewayConnection, OnGatewayDisconnect {
         })
       : null;
 
-    if (!device) {
+    if (!device || device.revokedAt) {
       client.close(4001, 'Token de dispositivo inválido');
       return;
     }

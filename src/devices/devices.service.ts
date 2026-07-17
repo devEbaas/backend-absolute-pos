@@ -11,6 +11,7 @@ import {
 } from '../common/crypto.util';
 import { CreateDeviceDto } from './dto/create-device.dto';
 import { PairDeviceDto } from './dto/pair-device.dto';
+import { CreatePairingCodeDto } from './dto/create-pairing-code.dto';
 
 const PAIRING_CODE_TTL_MS = 30 * 60 * 1000;
 
@@ -28,7 +29,12 @@ export class DevicesService {
 
     const apiKey = generateApiKey();
     const device = await this.prisma.device.create({
-      data: { businessId, label: dto.label, apiKeyHash: hashApiKey(apiKey) },
+      data: {
+        businessId,
+        label: dto.label,
+        platform: dto.deviceType ?? 'desktop',
+        apiKeyHash: hashApiKey(apiKey),
+      },
     });
 
     // The plaintext key is returned exactly once — only its hash is
@@ -38,6 +44,7 @@ export class DevicesService {
       id: device.id,
       businessId: device.businessId,
       label: device.label,
+      platform: device.platform,
       apiKey,
     };
   }
@@ -49,17 +56,49 @@ export class DevicesService {
         id: true,
         businessId: true,
         label: true,
+        platform: true,
         lastSeenAt: true,
+        revokedAt: true,
         createdAt: true,
       },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  // Generado por el operador (MASTER_API_KEY) cuando da de alta un negocio o
-  // agrega una caja — el código y el slug son lo único que el root_admin de
-  // esa caja necesita capturar en el wizard de primer arranque.
-  async createPairingCode(businessId: string) {
+  async revoke(businessId: string, deviceId: string) {
+    const device = await this.prisma.device.findFirst({
+      where: { id: deviceId, businessId },
+    });
+    if (!device) {
+      throw new NotFoundException('Dispositivo no encontrado');
+    }
+
+    return this.prisma.device.update({
+      where: { id: deviceId },
+      data: { revokedAt: device.revokedAt ?? new Date() },
+      select: { id: true, label: true, revokedAt: true },
+    });
+  }
+
+  async findPairingCodes(businessId: string) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+    });
+    if (!business) {
+      throw new NotFoundException('Negocio no encontrado');
+    }
+
+    return this.prisma.pairingCode.findMany({
+      where: { businessId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // Generado por el operador (master key o pos-root-dashboard) cuando da de
+  // alta un negocio o agrega un dispositivo — el código y el slug son lo
+  // único que el root_admin de esa caja (o el usuario del celular) necesita
+  // capturar/escanear para emparejar.
+  async createPairingCode(businessId: string, dto: CreatePairingCodeDto) {
     const business = await this.prisma.business.findUnique({
       where: { id: businessId },
     });
@@ -71,11 +110,16 @@ export class DevicesService {
       data: {
         businessId,
         code: generatePairingCode(),
+        platform: dto.deviceType ?? 'desktop',
         expiresAt: new Date(Date.now() + PAIRING_CODE_TTL_MS),
       },
     });
 
-    return { code: pairingCode.code, expiresAt: pairingCode.expiresAt };
+    return {
+      code: pairingCode.code,
+      platform: pairingCode.platform,
+      expiresAt: pairingCode.expiresAt,
+    };
   }
 
   // Endpoint público (sin guard) — el código de un solo uso ES la
@@ -119,6 +163,7 @@ export class DevicesService {
       data: {
         businessId: business.id,
         label: dto.deviceName,
+        platform: pairingCode.platform,
         apiKeyHash: hashApiKey(apiKey),
       },
     });

@@ -9,6 +9,19 @@ const { version } = require('../../package.json') as { version: string };
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // pos-root-dashboard es un SPA servido desde un origen distinto (no hay
+  // reverse proxy compartido) — sin esto, cualquier fetch desde el
+  // navegador falla en preflight. DASHBOARD_ORIGINS: lista separada por
+  // comas (ej. "https://dashboard.tu-dominio.com,http://localhost:5174").
+  // Sin esa variable, CORS queda deshabilitado (comportamiento previo).
+  const dashboardOrigins = (process.env.DASHBOARD_ORIGINS ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  if (dashboardOrigins.length > 0) {
+    app.enableCors({ origin: dashboardOrigins });
+  }
+
   // El worker de sync del desktop (absolute-pos-app/src/main/sync/realtime.js)
   // habla WebSocket plano (librería `ws`), no Socket.IO — este adapter expone
   // /ws con ese mismo protocolo.
