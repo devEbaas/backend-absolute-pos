@@ -1,9 +1,0 @@
-{$DOMAIN_API} {
-	reverse_proxy api:3000
-}
-
-# Placeholder — the stats dashboard (pos-web) is a later phase.
-# Replace this block with a reverse_proxy to that service once it exists.
-{$DOMAIN_WEB} {
-	respond "Absolute POS dashboard — coming soon" 200
-}

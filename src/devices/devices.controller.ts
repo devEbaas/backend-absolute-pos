@@ -6,6 +6,7 @@ import { MasterKeyGuard } from '../common/guards/master-key.guard';
 import { DeviceAuthGuard } from '../common/guards/device-auth.guard';
 import { DevicesService } from './devices.service';
 import { CreateDeviceDto } from './dto/create-device.dto';
+import { PairDeviceDto } from './dto/pair-device.dto';
 
 @ApiTags('admin/devices')
 @ApiBearerAuth('bearer')
@@ -26,6 +27,15 @@ export class DevicesAdminController {
   findAll(@Param('businessId') businessId: string) {
     return this.devices.findAllForBusiness(businessId);
   }
+
+  // Genera el código que el root_admin de la nueva caja va a capturar en el
+  // wizard, junto al slug del negocio — alternativa al apiKey en texto plano
+  // de arriba, pensada para dar de alta cajas sin que el operador tenga que
+  // correr un curl con la master key por cada instalación.
+  @Post('pairing-codes')
+  createPairingCode(@Param('businessId') businessId: string) {
+    return this.devices.createPairingCode(businessId);
+  }
 }
 
 // Self-service "whoami" for a device — proves the device API key works and
@@ -39,5 +49,19 @@ export class DevicesSelfController {
   @Get('me')
   me(@Req() req: Request) {
     return { success: true, device: req.device };
+  }
+}
+
+// Público — sin guard, el código de un solo uso es la autenticación. El
+// root_admin del wizard de primer arranque (absolute-pos-app) llama esto
+// una sola vez por caja para obtener su propio device api key.
+@ApiTags('devices')
+@Controller('devices')
+export class DevicesPairingController {
+  constructor(private readonly devices: DevicesService) {}
+
+  @Post('pair')
+  pair(@Body() dto: PairDeviceDto) {
+    return this.devices.pair(dto);
   }
 }

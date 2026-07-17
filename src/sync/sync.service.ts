@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { SyncGateway } from '../realtime/sync.gateway';
 import { SYNC_RESOURCES, SyncResource } from './sync-resource.interface';
 import { SyncPushDto } from './dto/sync-push.dto';
 
@@ -33,6 +34,7 @@ export class SyncService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly realtime: SyncGateway,
     @Inject(SYNC_RESOURCES) resources: SyncResource[],
   ) {
     this.resources = new Map(resources.map((r) => [r.tableName, r]));
@@ -72,6 +74,14 @@ export class SyncService {
             reason: err instanceof Error ? err.message : 'unknown error',
           });
         }
+      }
+    }
+
+    // Avisar a las cajas hermanas del mismo negocio para que hagan un pull
+    // inmediato — no bloquea la respuesta al dispositivo que hizo el push.
+    for (const table of Object.keys(accepted)) {
+      if (accepted[table].length > 0) {
+        this.realtime.notifyBusiness(businessId, deviceId, table);
       }
     }
 

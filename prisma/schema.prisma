@@ -21,6 +21,11 @@ datasource db {
 model Business {
   id        String   @id @default(uuid()) @db.Uuid
   name      String
+  // Identificador legible para que un root_admin lo capture a mano al
+  // emparejar una caja (ver PairingCode) — el id (uuid) sigue siendo el
+  // client_id real usado internamente, esto es solo la forma humana de
+  // referirse al mismo negocio.
+  slug      String   @unique
   createdAt DateTime @default(now()) @map("created_at")
 
   devices            Device[]
@@ -32,8 +37,25 @@ model Business {
   promotions         Promotion[]
   settings           BusinessSetting[]
   syncLogEntries     SyncLogEntry[]
+  pairingCodes       PairingCode[]
 
   @@map("businesses")
+}
+
+// Código de un solo uso que el operador genera para un negocio y que el
+// root_admin de una caja captura junto al slug para emparejarla (ver
+// POST /devices/pair) sin necesitar la MASTER_API_KEY.
+model PairingCode {
+  id         String    @id @default(uuid()) @db.Uuid
+  businessId String    @map("business_id") @db.Uuid
+  business   Business  @relation(fields: [businessId], references: [id])
+  code       String    @unique
+  expiresAt  DateTime  @map("expires_at")
+  usedAt     DateTime? @map("used_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([businessId])
+  @@map("pairing_codes")
 }
 
 model Device {
@@ -55,15 +77,22 @@ model Device {
 // in reports (sales.user_id, cash_sessions.user_id, ...). Never carries
 // password_hash/reset_code — local login stays entirely local.
 model User {
-  id         String   @id @db.Uuid
-  businessId String   @map("business_id") @db.Uuid
-  business   Business @relation(fields: [businessId], references: [id])
-  name       String
-  username   String
-  role       String   @default("cashier")
-  active     Boolean  @default(true)
-  createdAt  DateTime @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id           String   @id @db.Uuid
+  businessId   String   @map("business_id") @db.Uuid
+  business     Business @relation(fields: [businessId], references: [id])
+  name         String
+  username     String
+  // Cloud-native login only — never populated by /sync/push, never synced
+  // back to the Electron install. Null for every user created there (the
+  // "shadow" rows this table already carries for FK/report attribution).
+  // Login and the app-level username-uniqueness check both filter on
+  // `passwordHash IS NOT NULL`, so this coexists with the intentionally
+  // non-unique username from desktop-synced rows without a DB constraint.
+  passwordHash String?  @map("password_hash")
+  role         String   @default("cashier")
+  active       Boolean  @default(true)
+  createdAt    DateTime @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   sales              Sale[]
   cashSessions       CashSession[]

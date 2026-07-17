@@ -1,0 +1,86 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: Production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npx prisma generate
+
+      - run: npm run build
+
+      - name: Install SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SERVER_SSH_KEY }}
+
+      - name: Add server to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Sync files
+        run: |
+          rsync -az --delete \
+            --exclude=node_modules \
+            --exclude=.git \
+            --exclude=.env \
+            ./ \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/absolute-pos-backend/
+
+      - name: Write .env
+        env:
+          NODE_ENV: ${{ vars.NODE_ENV }}
+          PORT: ${{ vars.PORT }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MASTER_API_KEY: ${{ secrets.MASTER_API_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: |
+          cat > deploy.env <<ENVEOF
+          NODE_ENV=$NODE_ENV
+          PORT=$PORT
+
+          DATABASE_URL=$DATABASE_URL
+
+          MASTER_API_KEY=$MASTER_API_KEY
+          JWT_SECRET=$JWT_SECRET
+          ENVEOF
+          rsync -az deploy.env ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:/opt/absolute-pos-backend/.env
+          rm -f deploy.env
+
+      - name: Install & Restart
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+            export NVM_DIR="$HOME/.nvm"
+            source "$NVM_DIR/nvm.sh"
+
+            cd /opt/absolute-pos-backend
+
+            npm ci
+
+            npx prisma generate
+
+            npx prisma migrate deploy
+
+            pm2 restart absolute-pos-backend || pm2 start dist/src/main.js --name absolute-pos-backend
+            pm2 save
+          EOF

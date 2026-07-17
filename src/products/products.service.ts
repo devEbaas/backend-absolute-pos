@@ -21,6 +21,10 @@ export class ProductsService implements SyncResource<ProductSyncItemDto> {
     return this.prisma.product.findMany({ where: { id: { in: ids } } });
   }
 
+  findOne(businessId: string, id: string) {
+    return this.prisma.product.findFirst({ where: { businessId, id } });
+  }
+
   toPullDto(
     row: Awaited<ReturnType<ProductsService['findManyByIds']>>[number],
   ) {
