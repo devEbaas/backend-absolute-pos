@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import {
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class CreateDeviceDto {
   @ApiProperty({
@@ -10,4 +16,13 @@ export class CreateDeviceDto {
   @IsNotEmpty()
   @MaxLength(100)
   label: string;
+
+  @ApiProperty({
+    required: false,
+    enum: ['desktop', 'mobile'],
+    default: 'desktop',
+  })
+  @IsOptional()
+  @IsIn(['desktop', 'mobile'])
+  deviceType?: string;
 }

@@ -50,6 +50,10 @@ model PairingCode {
   businessId String    @map("business_id") @db.Uuid
   business   Business  @relation(fields: [businessId], references: [id])
   code       String    @unique
+  // "desktop" | "mobile" — elegido por el operador al generar el código
+  // (pos-root-dashboard), no por el cliente que empareja. pair() copia este
+  // valor al Device resultante; ver la nota en PairDeviceDto.
+  platform   String    @default("desktop")
   expiresAt  DateTime  @map("expires_at")
   usedAt     DateTime? @map("used_at")
   createdAt  DateTime  @default(now()) @map("created_at")
@@ -63,14 +67,39 @@ model Device {
   businessId String    @map("business_id") @db.Uuid
   business   Business  @relation(fields: [businessId], references: [id])
   label      String
+  // "desktop" | "mobile" — capturado en la creación/pairing, sin enum de
+  // Postgres para no complicar la migración; se valida en el DTO.
+  platform   String    @default("desktop")
   apiKeyHash String    @unique @map("api_key_hash")
   lastSeenAt DateTime? @map("last_seen_at")
+  // Marca el dispositivo como inválido sin borrar su historial de ventas.
+  // DeviceAuthGuard rechaza cualquier request de un device con este campo
+  // set, aunque el api key siga siendo técnicamente correcto.
+  revokedAt  DateTime? @map("revoked_at")
   createdAt  DateTime  @default(now()) @map("created_at")
 
   sales Sale[]
 
   @@index([businessId])
   @@map("devices")
+}
+
+// Cuenta cross-tenant del operador de la plataforma (no pertenece a ningún
+// Business) — usada para loguearse en pos-root-dashboard y administrar
+// negocios/dispositivos sin depender de MASTER_API_KEY en el día a día. Ver
+// PlatformAdminGuard: el JWT que emite este login lleva scope
+// "platform-admin" y nunca los claims businessId/deviceId/role que exige
+// JwtAuthGuard, así que es inutilizable contra los endpoints de negocio.
+model PlatformAdmin {
+  id           String   @id @default(uuid()) @db.Uuid
+  username     String   @unique
+  name         String
+  passwordHash String   @map("password_hash")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_admins")
 }
 
 // Cashier identity, synced from the local `users` table for attribution

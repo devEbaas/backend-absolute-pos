@@ -1,12 +1,12 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { MasterKeyGuard } from '../common/guards/master-key.guard';
+import { AdminAccessGuard } from '../common/guards/admin-access.guard';
 import { BusinessesService } from './businesses.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
 
 @ApiTags('admin/businesses')
 @ApiBearerAuth('bearer')
-@UseGuards(MasterKeyGuard)
+@UseGuards(AdminAccessGuard)
 @Controller('admin/businesses')
 export class BusinessesController {
   constructor(private readonly businesses: BusinessesService) {}
@@ -19,5 +19,10 @@ export class BusinessesController {
   @Get()
   findAll() {
     return this.businesses.findAll();
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.businesses.findOne(id);
   }
 }

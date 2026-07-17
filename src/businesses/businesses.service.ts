@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBusinessDto } from './dto/create-business.dto';
 
@@ -14,6 +14,14 @@ export class BusinessesService {
 
   findAll() {
     return this.prisma.business.findMany({ orderBy: { createdAt: 'desc' } });
+  }
+
+  async findOne(id: string) {
+    const business = await this.prisma.business.findUnique({ where: { id } });
+    if (!business) {
+      throw new NotFoundException('Negocio no encontrado');
+    }
+    return business;
   }
 
   findBySlug(slug: string) {

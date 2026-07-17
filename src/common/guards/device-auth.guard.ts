@@ -41,6 +41,9 @@ export class DeviceAuthGuard implements CanActivate {
     if (!device) {
       throw new UnauthorizedException('Token de dispositivo inválido');
     }
+    if (device.revokedAt) {
+      throw new UnauthorizedException('Dispositivo revocado');
+    }
 
     req.device = {
       id: device.id,
