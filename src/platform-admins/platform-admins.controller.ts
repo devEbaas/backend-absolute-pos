@@ -1,10 +1,20 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import type { Request } from 'express';
 import { MasterKeyGuard } from '../common/guards/master-key.guard';
 import { PlatformAdminGuard } from '../common/guards/platform-admin.guard';
 import { PlatformAdminsService } from './platform-admins.service';
 import { CreatePlatformAdminDto } from './dto/create-platform-admin.dto';
 import { PlatformAdminLoginDto } from './dto/platform-admin-login.dto';
+import { UpdatePlatformAdminDto } from './dto/update-platform-admin.dto';
 
 // Bootstrap del primer platform admin — master-key gated, como
 // UsersAdminController. El operador lo llama una sola vez desde la
@@ -22,8 +32,8 @@ export class PlatformAdminsBootstrapController {
   }
 }
 
-// Self-service una vez logueado: agregar colegas u obtener la lista de
-// operadores actuales, sin volver a necesitar la master key.
+// Self-service una vez logueado: agregar colegas, listar operadores, y
+// editar el propio perfil — sin volver a necesitar la master key.
 @ApiTags('platform-admins')
 @ApiBearerAuth('bearer')
 @UseGuards(PlatformAdminGuard)
@@ -40,11 +50,21 @@ export class PlatformAdminsController {
   findAll() {
     return this.platformAdmins.findAll();
   }
+
+  @Get('me')
+  findSelf(@Req() req: Request) {
+    return this.platformAdmins.findSelf(req.platformAdmin!.id);
+  }
+
+  @Patch('me')
+  updateSelf(@Req() req: Request, @Body() dto: UpdatePlatformAdminDto) {
+    return this.platformAdmins.updateSelf(req.platformAdmin!.id, dto);
+  }
 }
 
-// Público — username+password son la autenticación, igual que /auth/login
-// pero sin DeviceAuthGuard previo (no hay dispositivo involucrado, un
-// platform admin no pertenece a ningún negocio).
+// Público — identifier (username o email) + password son la autenticación,
+// igual que /auth/login pero sin DeviceAuthGuard previo (no hay dispositivo
+// involucrado, un platform admin no pertenece a ningún negocio).
 @ApiTags('platform-admins')
 @Controller('platform-admin')
 export class PlatformAuthController {
@@ -52,6 +72,6 @@ export class PlatformAuthController {
 
   @Post('login')
   login(@Body() dto: PlatformAdminLoginDto) {
-    return this.platformAdmins.login(dto.username, dto.password);
+    return this.platformAdmins.login(dto.identifier, dto.password);
   }
 }

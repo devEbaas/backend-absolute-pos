@@ -15,6 +15,15 @@ export function hashApiKey(key: string): string {
   return createHash('sha256').update(key).digest('hex');
 }
 
+// Password inicial para un usuario creado desde pos-root-dashboard sin que
+// el operador la capture a mano (ver BusinessesService.create /
+// UsersService.create) — se muestra en texto plano una sola vez en la
+// respuesta, igual que el device api key o el pairing code; nunca se
+// persiste en claro, solo su hash.
+export function generateTempPassword(): string {
+  return randomBytes(9).toString('base64url');
+}
+
 export function safeEqual(a: string, b: string): boolean {
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);

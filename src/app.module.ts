@@ -12,6 +12,7 @@ import { InventoryModule } from './inventory/inventory.module';
 import { CashModule } from './cash/cash.module';
 import { SalesModule } from './sales/sales.module';
 import { PlatformAdminsModule } from './platform-admins/platform-admins.module';
+import { MetricsModule } from './metrics/metrics.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { PlatformAdminsModule } from './platform-admins/platform-admins.module';
     InventoryModule,
     CashModule,
     SalesModule,
+    MetricsModule,
   ],
 })
 export class AppModule {}

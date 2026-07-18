@@ -94,6 +94,10 @@ model PlatformAdmin {
   id           String   @id @default(uuid()) @db.Uuid
   username     String   @unique
   name         String
+  // Opcional — login() acepta username O email en el mismo campo (ver
+  // PlatformAdminsService.login), y las filas creadas antes de este campo
+  // (bootstrap manual vía SQL) no necesariamente lo tienen cargado.
+  email        String?  @unique
   passwordHash String   @map("password_hash")
   active       Boolean  @default(true)
   createdAt    DateTime @default(now()) @map("created_at")
@@ -120,6 +124,12 @@ model User {
   passwordHash String?  @map("password_hash")
   role         String   @default("cashier")
   active       Boolean  @default(true)
+  // Datos de contacto — solo se llenan para usuarios cloud-native creados
+  // desde pos-root-dashboard (ver UsersService.create); las filas "shadow"
+  // sincronizadas desde el desktop no los traen. Sin unicidad: mismo motivo
+  // que username (varias cajas seedeando "admin" de forma independiente).
+  email        String?
+  phone        String?
   createdAt    DateTime @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 

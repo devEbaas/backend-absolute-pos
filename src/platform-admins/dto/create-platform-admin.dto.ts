@@ -1,5 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class CreatePlatformAdminDto {
   @ApiProperty({ example: 'Eduardo' })
@@ -18,4 +25,9 @@ export class CreatePlatformAdminDto {
   @IsString()
   @MinLength(6)
   password: string;
+
+  @ApiProperty({ required: false, example: 'eduardo@absolutepos.com' })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
 }

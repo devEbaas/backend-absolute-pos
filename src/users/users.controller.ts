@@ -35,6 +35,14 @@ export class UsersAdminController {
   ) {
     return this.users.create(businessId, dto);
   }
+
+  // Listado para la pestaña "Usuarios" de pos-root-dashboard — a diferencia
+  // de UsersController.findAll (device-gated, para el picker mobile), este
+  // sí expone email/phone/status.
+  @Get()
+  findAll(@Param('businessId') businessId: string) {
+    return this.users.findAllForBusinessAdmin(businessId);
+  }
 }
 
 @ApiTags('users')
