@@ -1,12 +1,14 @@
 import {
   ConflictException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { hashPassword, comparePassword } from '../common/password.util';
 import { CreatePlatformAdminDto } from './dto/create-platform-admin.dto';
+import { UpdatePlatformAdminDto } from './dto/update-platform-admin.dto';
 
 @Injectable()
 export class PlatformAdminsService {
@@ -16,22 +18,33 @@ export class PlatformAdminsService {
   ) {}
 
   async create(dto: CreatePlatformAdminDto) {
-    const existing = await this.prisma.platformAdmin.findUnique({
-      where: { username: dto.username },
+    const existing = await this.prisma.platformAdmin.findFirst({
+      where: {
+        OR: [
+          { username: dto.username },
+          ...(dto.email ? [{ email: dto.email }] : []),
+        ],
+      },
     });
     if (existing) {
-      throw new ConflictException('Ese username ya está en uso');
+      throw new ConflictException('Ese username o correo ya está en uso');
     }
 
     const admin = await this.prisma.platformAdmin.create({
       data: {
         name: dto.name,
         username: dto.username,
+        email: dto.email,
         passwordHash: await hashPassword(dto.password),
       },
     });
 
-    return { id: admin.id, name: admin.name, username: admin.username };
+    return {
+      id: admin.id,
+      name: admin.name,
+      username: admin.username,
+      email: admin.email,
+    };
   }
 
   findAll() {
@@ -40,6 +53,7 @@ export class PlatformAdminsService {
         id: true,
         name: true,
         username: true,
+        email: true,
         active: true,
         createdAt: true,
       },
@@ -47,9 +61,41 @@ export class PlatformAdminsService {
     });
   }
 
-  async login(username: string, password: string) {
+  async findSelf(id: string) {
     const admin = await this.prisma.platformAdmin.findUnique({
-      where: { username },
+      where: { id },
+      select: { id: true, name: true, username: true, email: true },
+    });
+    if (!admin) {
+      throw new NotFoundException('Platform admin no encontrado');
+    }
+    return admin;
+  }
+
+  async updateSelf(id: string, dto: UpdatePlatformAdminDto) {
+    if (dto.email) {
+      const existing = await this.prisma.platformAdmin.findUnique({
+        where: { email: dto.email },
+      });
+      if (existing && existing.id !== id) {
+        throw new ConflictException('Ese correo ya está en uso');
+      }
+    }
+
+    const admin = await this.prisma.platformAdmin.update({
+      where: { id },
+      data: { name: dto.name, email: dto.email },
+      select: { id: true, name: true, username: true, email: true },
+    });
+    return admin;
+  }
+
+  // identifier: username o email, capturados en el mismo campo "Correo" del
+  // login del dashboard — no todos los platform admins tienen email cargado
+  // (ej. los creados antes de este campo, o por bootstrap manual vía SQL).
+  async login(identifier: string, password: string) {
+    const admin = await this.prisma.platformAdmin.findFirst({
+      where: { OR: [{ username: identifier }, { email: identifier }] },
     });
     if (!admin || !admin.active) {
       throw new UnauthorizedException('Usuario o contraseña incorrectos');
@@ -71,7 +117,12 @@ export class PlatformAdminsService {
 
     return {
       token,
-      admin: { id: admin.id, name: admin.name, username: admin.username },
+      admin: {
+        id: admin.id,
+        name: admin.name,
+        username: admin.username,
+        email: admin.email,
+      },
     };
   }
 }
