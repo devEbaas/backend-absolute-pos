@@ -11,8 +11,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { AdminAccessGuard } from '../common/guards/admin-access.guard';
 import { DeviceAuthGuard } from '../common/guards/device-auth.guard';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { AdminRoleGuard } from '../common/guards/admin-role.guard';
+import { DeviceOrAdminGuard } from '../common/guards/device-or-admin.guard';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 
@@ -51,12 +50,17 @@ export class UsersAdminController {
 export class UsersController {
   constructor(private readonly users: UsersService) {}
 
-  // Lets an already-logged-in owner add cashiers from the app itself
-  // without needing MASTER_API_KEY.
-  @UseGuards(JwtAuthGuard, AdminRoleGuard)
+  // Lets a paired Electron install (device_api_key) create a cashier with a
+  // real password directly in the cloud — see absolute-pos-app's
+  // users.ipc.js, which now calls this before touching its local SQLite, so
+  // the new user can log in from any other paired device right away instead
+  // of arriving there as a passwordless sync "shadow" row. Also accepts an
+  // already-logged-in owner's admin JWT (DeviceOrAdminGuard), for the
+  // future case of adding cashiers from an app that isn't device-bound.
+  @UseGuards(DeviceOrAdminGuard)
   @Post()
   create(@Req() req: Request, @Body() dto: CreateUserDto) {
-    return this.users.create(req.auth!.businessId, dto);
+    return this.users.create(req.businessId!, dto);
   }
 
   // Device-gated (not JWT) so the mobile app can list cashiers for a
