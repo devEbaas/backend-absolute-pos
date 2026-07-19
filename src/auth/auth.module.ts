@@ -1,7 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { AuthController } from './auth.controller';
+import { AuthController, BusinessAdminAuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
@@ -20,7 +20,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
       }),
     }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, BusinessAdminAuthController],
   providers: [AuthService, JwtAuthGuard],
   exports: [JwtModule, AuthService, JwtAuthGuard],
 })

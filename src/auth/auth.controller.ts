@@ -4,6 +4,7 @@ import type { Request } from 'express';
 import { DeviceAuthGuard } from '../common/guards/device-auth.guard';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { BusinessAdminLoginDto } from './dto/business-admin-login.dto';
 
 // Gated by DeviceAuthGuard: the mobile install authenticates itself first
 // (device api key, provisioned the same way as an Electron install — see
@@ -25,5 +26,19 @@ export class AuthController {
       dto.username,
       dto.password,
     );
+  }
+}
+
+// Público — sin DeviceAuthGuard, no hay ninguna caja involucrada: el dueño
+// entra desde un navegador al dashboard web, identificando su negocio por
+// slug en el propio body (ver AuthService.loginOwner()).
+@ApiTags('business-admin')
+@Controller('business-admin')
+export class BusinessAdminAuthController {
+  constructor(private readonly auth: AuthService) {}
+
+  @Post('login')
+  login(@Body() dto: BusinessAdminLoginDto) {
+    return this.auth.loginOwner(dto.businessSlug, dto.username, dto.password);
   }
 }
