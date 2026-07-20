@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { hashPassword } from '../common/password.util';
 import { generateTempPassword } from '../common/crypto.util';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 
 @Injectable()
 export class UsersService {
@@ -114,6 +115,49 @@ export class UsersService {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  // Editar nombre/email/teléfono desde el dashboard del dueño
+  // (docs/dashboard-cliente-design-brief.md §5.5) — no toca username,
+  // password ni role, ver comentario en UpdateUserProfileDto. Mismo patrón
+  // transacción+syncLogEntry que setActive()/create().
+  async updateProfile(
+    businessId: string,
+    userId: string,
+    dto: UpdateUserProfileDto,
+  ) {
+    const existing = await this.prisma.user.findFirst({
+      where: { id: userId, businessId },
+    });
+    if (!existing) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.update({
+        where: { id: userId },
+        data: {
+          ...(dto.name !== undefined && { name: dto.name }),
+          ...(dto.email !== undefined && { email: dto.email }),
+          ...(dto.phone !== undefined && { phone: dto.phone }),
+          updatedAt: new Date(),
+        },
+      });
+      await tx.syncLogEntry.create({
+        data: { businessId, tableName: 'users', rowId: user.id },
+      });
+      return user;
+    });
+
+    return {
+      id: updated.id,
+      name: updated.name,
+      username: updated.username,
+      email: updated.email,
+      phone: updated.phone,
+      role: updated.role,
+      active: updated.active,
+    };
   }
 
   // Activar/desactivar cajero desde el dashboard del dueño (reports-brief

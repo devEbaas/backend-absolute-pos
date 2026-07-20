@@ -18,6 +18,7 @@ import { AdminRoleGuard } from '../common/guards/admin-role.guard';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ToggleUserActiveDto } from './dto/toggle-user-active.dto';
+import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 
 // Bootstraps the first cloud-native login (admin) for a business — no
 // business JWT exists yet at that point, so this is gated by
@@ -73,6 +74,18 @@ export class UsersController {
   @Get()
   findAll(@Req() req: Request) {
     return this.users.findAllForBusiness(req.device!.businessId);
+  }
+
+  // Editar nombre/email/teléfono — pantalla "Usuarios" del dashboard del
+  // dueño. Mismo guard combo que setActive() de abajo.
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
+  @Patch(':id')
+  updateProfile(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() dto: UpdateUserProfileDto,
+  ) {
+    return this.users.updateProfile(req.auth!.businessId, id, dto);
   }
 
   // Activar/desactivar cajero — pantalla "Usuarios" del dashboard del dueño
