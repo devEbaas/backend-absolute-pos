@@ -85,7 +85,12 @@ export class UsersController {
     @Param('id') id: string,
     @Body() dto: UpdateUserProfileDto,
   ) {
-    return this.users.updateProfile(req.auth!.businessId, id, dto);
+    return this.users.updateProfile(
+      req.auth!.businessId,
+      id,
+      req.auth!.userId,
+      dto,
+    );
   }
 
   // Activar/desactivar cajero — pantalla "Usuarios" del dashboard del dueño
