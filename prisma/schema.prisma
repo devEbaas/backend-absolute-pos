@@ -314,6 +314,7 @@ model CashCut {
   openingAmount        Decimal     @default(0) @map("opening_amount") @db.Decimal(12, 2)
   totalCashSales       Decimal     @default(0) @map("total_cash_sales") @db.Decimal(12, 2)
   totalCardSales       Decimal     @default(0) @map("total_card_sales") @db.Decimal(12, 2)
+  totalTransferSales   Decimal     @default(0) @map("total_transfer_sales") @db.Decimal(12, 2)
   totalOtherSales      Decimal     @default(0) @map("total_other_sales") @db.Decimal(12, 2)
   totalSales           Decimal     @default(0) @map("total_sales") @db.Decimal(12, 2)
   totalCancelledAmount Decimal     @default(0) @map("total_cancelled_amount") @db.Decimal(12, 2)

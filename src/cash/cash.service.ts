@@ -112,15 +112,18 @@ export class CashService {
 
     let totalCashSales = 0;
     let totalCardSales = 0;
+    let totalTransferSales = 0;
     let totalOtherSales = 0;
     for (const sale of sales) {
       const bucket = normalizePaymentMethod(sale.paymentMethod);
       const amount = Number(sale.total);
       if (bucket === 'cash') totalCashSales += amount;
       else if (bucket === 'card') totalCardSales += amount;
+      else if (bucket === 'transfer') totalTransferSales += amount;
       else totalOtherSales += amount;
     }
-    const totalSales = totalCashSales + totalCardSales + totalOtherSales;
+    const totalSales =
+      totalCashSales + totalCardSales + totalTransferSales + totalOtherSales;
 
     const cancelled = await this.prisma.sale.aggregate({
       where: { businessId, sessionId, cancelled: true },
@@ -142,6 +145,7 @@ export class CashService {
       openingAmount,
       totalCashSales,
       totalCardSales,
+      totalTransferSales,
       totalOtherSales,
       totalSales,
       totalCancelledAmount: Number(cancelled._sum.total ?? 0),
@@ -170,6 +174,7 @@ export class CashService {
       openingAmount: totals.openingAmount,
       totalCashSales: totals.totalCashSales,
       totalCardSales: totals.totalCardSales,
+      totalTransferSales: totals.totalTransferSales,
       totalOtherSales: totals.totalOtherSales,
       totalSales: totals.totalSales,
       totalCancelledAmount: totals.totalCancelledAmount,

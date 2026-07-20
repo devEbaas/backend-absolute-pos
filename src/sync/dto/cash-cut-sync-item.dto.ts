@@ -16,6 +16,12 @@ export class CashCutSyncItemDto {
   @ApiProperty() @IsNumber() openingAmount: number;
   @ApiProperty() @IsNumber() totalCashSales: number;
   @ApiProperty() @IsNumber() totalCardSales: number;
+  // Optional — pushed by desktop app versions >= the transfer-bucket
+  // rollout; older clients omit it and fall back to 0 (see upsertFromSync).
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  totalTransferSales?: number;
   @ApiProperty() @IsNumber() totalOtherSales: number;
   @ApiProperty() @IsNumber() totalSales: number;
   @ApiProperty() @IsNumber() totalCancelledAmount: number;
