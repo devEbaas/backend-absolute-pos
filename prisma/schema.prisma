@@ -78,10 +78,34 @@ model Device {
   revokedAt  DateTime? @map("revoked_at")
   createdAt  DateTime  @default(now()) @map("created_at")
 
-  sales Sale[]
+  sales   Sale[]
+  license License?
 
   @@index([businessId])
   @@map("devices")
+}
+
+// Solicitud/activación de licencia de software para una instalación de
+// escritorio ya emparejada (1:1 con Device — el device_api_key ya prueba de
+// qué instalación se trata, no hace falta un hardware fingerprint aparte).
+// Reemplaza el esquema anterior 100% offline (clave HMAC calculada a mano)
+// por un flujo pedido-desde-el-desktop / aprobado-desde-pos-root-dashboard.
+model License {
+  id          String    @id @default(uuid()) @db.Uuid
+  deviceId    String    @unique @map("device_id") @db.Uuid
+  device      Device    @relation(fields: [deviceId], references: [id])
+  // "pending" | "active" | "revoked"
+  status      String    @default("pending")
+  requestedAt DateTime  @default(now()) @map("requested_at")
+  activatedAt DateTime? @map("activated_at")
+  // PlatformAdmin.id de quien aprobó — sin relación FK formal a propósito
+  // (igual que SaleCancellation.cancelledBy en el desktop no referencia
+  // platform_admins), para no acoplar este modelo a que el admin exista.
+  activatedBy String?   @map("activated_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([status])
+  @@map("licenses")
 }
 
 // Cuenta cross-tenant del operador de la plataforma (no pertenece a ningún
@@ -314,6 +338,7 @@ model CashCut {
   openingAmount        Decimal     @default(0) @map("opening_amount") @db.Decimal(12, 2)
   totalCashSales       Decimal     @default(0) @map("total_cash_sales") @db.Decimal(12, 2)
   totalCardSales       Decimal     @default(0) @map("total_card_sales") @db.Decimal(12, 2)
+  totalTransferSales   Decimal     @default(0) @map("total_transfer_sales") @db.Decimal(12, 2)
   totalOtherSales      Decimal     @default(0) @map("total_other_sales") @db.Decimal(12, 2)
   totalSales           Decimal     @default(0) @map("total_sales") @db.Decimal(12, 2)
   totalCancelledAmount Decimal     @default(0) @map("total_cancelled_amount") @db.Decimal(12, 2)

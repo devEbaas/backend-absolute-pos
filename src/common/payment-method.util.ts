@@ -1,4 +1,4 @@
-export type NormalizedPaymentMethod = 'cash' | 'card' | 'other';
+export type NormalizedPaymentMethod = 'cash' | 'card' | 'transfer' | 'other';
 
 // Shared bucketing rule for reporting/cuts: raw Sale.paymentMethod is free
 // text from the client (desktop/mobile pick their own labels), so every
@@ -10,5 +10,6 @@ export function normalizePaymentMethod(
   const value = method.toLowerCase();
   if (value === 'cash' || value === 'efectivo') return 'cash';
   if (value === 'card' || value === 'tarjeta') return 'card';
+  if (value === 'transfer' || value === 'transferencia') return 'transfer';
   return 'other';
 }

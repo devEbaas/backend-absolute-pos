@@ -4,6 +4,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { HealthModule } from './health/health.module';
 import { BusinessesModule } from './businesses/businesses.module';
 import { DevicesModule } from './devices/devices.module';
+import { LicensesModule } from './licenses/licenses.module';
 import { ProductsModule } from './products/products.module';
 import { SyncModule } from './sync/sync.module';
 import { AuthModule } from './auth/auth.module';
@@ -23,6 +24,7 @@ import { ReportsModule } from './reports/reports.module';
     PlatformAdminsModule,
     BusinessesModule,
     DevicesModule,
+    LicensesModule,
     ProductsModule,
     SyncModule,
     AuthModule,

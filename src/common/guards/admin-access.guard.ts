@@ -7,6 +7,10 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { extractBearerToken, safeEqual } from '../crypto.util';
+// Reutiliza la misma extensión de Request declarada en platform-admin.guard —
+// TS mezcla la augmentation del módulo 'express' sin importar en qué guard
+// se declaró primero.
+import './platform-admin.guard';
 
 interface PlatformAdminJwtClaims {
   sub: string;
@@ -40,6 +44,10 @@ export class AdminAccessGuard implements CanActivate {
       const payload =
         await this.jwtService.verifyAsync<PlatformAdminJwtClaims>(token);
       if (payload.scope === 'platform-admin') {
+        // Deja identidad disponible para endpoints que auditan quién actuó
+        // (ej. LicensesService.approve) — queda undefined en el camino de
+        // master key, que no tiene un admin asociado.
+        req.platformAdmin = { id: payload.sub, username: payload.username };
         return true;
       }
     } catch {
