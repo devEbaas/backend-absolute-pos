@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -12,8 +13,12 @@ import type { Request } from 'express';
 import { AdminAccessGuard } from '../common/guards/admin-access.guard';
 import { DeviceAuthGuard } from '../common/guards/device-auth.guard';
 import { DeviceOrAdminGuard } from '../common/guards/device-or-admin.guard';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { AdminRoleGuard } from '../common/guards/admin-role.guard';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { ToggleUserActiveDto } from './dto/toggle-user-active.dto';
+import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 
 // Bootstraps the first cloud-native login (admin) for a business — no
 // business JWT exists yet at that point, so this is gated by
@@ -69,5 +74,32 @@ export class UsersController {
   @Get()
   findAll(@Req() req: Request) {
     return this.users.findAllForBusiness(req.device!.businessId);
+  }
+
+  // Editar nombre/email/teléfono — pantalla "Usuarios" del dashboard del
+  // dueño. Mismo guard combo que setActive() de abajo.
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
+  @Patch(':id')
+  updateProfile(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() dto: UpdateUserProfileDto,
+  ) {
+    return this.users.updateProfile(req.auth!.businessId, id, dto);
+  }
+
+  // Activar/desactivar cajero — pantalla "Usuarios" del dashboard del dueño
+  // (ver docs/dashboard-cliente-design-brief.md §5.5). Gateado igual que
+  // ReportsController (JwtAuthGuard+AdminRoleGuard) en vez de
+  // DeviceOrAdminGuard: esta acción es de administración del negocio, no
+  // algo que un Electron pareado dispare por su cuenta.
+  @UseGuards(JwtAuthGuard, AdminRoleGuard)
+  @Patch(':id/active')
+  setActive(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() dto: ToggleUserActiveDto,
+  ) {
+    return this.users.setActive(req.auth!.businessId, id, dto.active);
   }
 }
