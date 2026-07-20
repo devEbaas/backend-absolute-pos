@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -124,6 +125,7 @@ export class UsersService {
   async updateProfile(
     businessId: string,
     userId: string,
+    actingUserId: string,
     dto: UpdateUserProfileDto,
   ) {
     const existing = await this.prisma.user.findFirst({
@@ -133,6 +135,19 @@ export class UsersService {
       throw new NotFoundException('Usuario no encontrado');
     }
 
+    // Evita que el dueño se quite el rol admin a sí mismo por accidente
+    // desde este modal genérico — se quedaría sin forma de revertirlo (el
+    // dashboard entero exige role: 'admin' para entrar, ver AuthService.loginOwner).
+    if (
+      userId === actingUserId &&
+      dto.role !== undefined &&
+      dto.role !== 'admin'
+    ) {
+      throw new ForbiddenException(
+        'No puedes quitarte el rol de administrador a ti mismo',
+      );
+    }
+
     const updated = await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.update({
         where: { id: userId },
@@ -140,6 +155,7 @@ export class UsersService {
           ...(dto.name !== undefined && { name: dto.name }),
           ...(dto.email !== undefined && { email: dto.email }),
           ...(dto.phone !== undefined && { phone: dto.phone }),
+          ...(dto.role !== undefined && { role: dto.role }),
           updatedAt: new Date(),
         },
       });
