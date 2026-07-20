@@ -1,4 +1,8 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { hashPassword } from '../common/password.util';
@@ -110,5 +114,40 @@ export class UsersService {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  // Activar/desactivar cajero desde el dashboard del dueño (reports-brief
+  // §5.5) — soft toggle, mismo campo `active` que ya filtra el picker de
+  // login mobile y AuthService.login()/loginOwner(). Mismo patrón
+  // transacción+syncLogEntry que create(), para que un desktop pareado
+  // también vea el cambio en su próximo pull.
+  async setActive(businessId: string, userId: string, active: boolean) {
+    const existing = await this.prisma.user.findFirst({
+      where: { id: userId, businessId },
+    });
+    if (!existing) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.update({
+        where: { id: userId },
+        data: { active, updatedAt: new Date() },
+      });
+      await tx.syncLogEntry.create({
+        data: { businessId, tableName: 'users', rowId: user.id },
+      });
+      return user;
+    });
+
+    return {
+      id: updated.id,
+      name: updated.name,
+      username: updated.username,
+      email: updated.email,
+      phone: updated.phone,
+      role: updated.role,
+      active: updated.active,
+    };
   }
 }
