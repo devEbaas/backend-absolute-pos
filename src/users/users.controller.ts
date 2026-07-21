@@ -19,6 +19,7 @@ import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ToggleUserActiveDto } from './dto/toggle-user-active.dto';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 // Bootstraps the first cloud-native login (admin) for a business — no
 // business JWT exists yet at that point, so this is gated by
@@ -74,6 +75,20 @@ export class UsersController {
   @Get()
   findAll(@Req() req: Request) {
     return this.users.findAllForBusiness(req.device!.businessId);
+  }
+
+  // Cambio de contraseña propio — pantalla "Perfil" del dashboard del
+  // dueño. Solo JwtAuthGuard (sin AdminRoleGuard): opera sobre
+  // req.auth.userId, no sobre un :id de la URL, así que cualquier identidad
+  // autenticada puede cambiar SU propia contraseña, sin necesitar rol admin.
+  @UseGuards(JwtAuthGuard)
+  @Post('me/change-password')
+  changeOwnPassword(@Req() req: Request, @Body() dto: ChangePasswordDto) {
+    return this.users.changeOwnPassword(
+      req.auth!.businessId,
+      req.auth!.userId,
+      dto,
+    );
   }
 
   // Editar nombre/email/teléfono — pantalla "Usuarios" del dashboard del

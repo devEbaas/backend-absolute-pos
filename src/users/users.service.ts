@@ -3,13 +3,15 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { hashPassword } from '../common/password.util';
+import { comparePassword, hashPassword } from '../common/password.util';
 import { generateTempPassword } from '../common/crypto.util';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Injectable()
 export class UsersService {
@@ -209,5 +211,44 @@ export class UsersService {
       role: updated.role,
       active: updated.active,
     };
+  }
+
+  // Cambio de contraseña propio desde "Perfil" — a diferencia de
+  // create()/updateProfile(), esto lo puede llamar cualquier identidad JWT
+  // sobre sí misma (no requiere AdminRoleGuard en el controller), por eso
+  // exige la contraseña actual en vez de confiar solo en el token.
+  // password_hash nunca viaja por /sync (ver sync/resources/users.resource.ts),
+  // así que el syncLogEntry de abajo solo hace que las cajas repareadas
+  // vuelvan a pull name/username/role/active — inofensivo, mantiene el
+  // mismo patrón que el resto de este service.
+  async changeOwnPassword(
+    businessId: string,
+    userId: string,
+    dto: ChangePasswordDto,
+  ) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, businessId },
+    });
+    if (!user || !user.passwordHash) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    const valid = await comparePassword(dto.currentPassword, user.passwordHash);
+    if (!valid) {
+      throw new UnauthorizedException('Contraseña actual incorrecta');
+    }
+
+    const passwordHash = await hashPassword(dto.newPassword);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: { passwordHash, updatedAt: new Date() },
+      });
+      await tx.syncLogEntry.create({
+        data: { businessId, tableName: 'users', rowId: userId },
+      });
+    });
+
+    return { success: true };
   }
 }
