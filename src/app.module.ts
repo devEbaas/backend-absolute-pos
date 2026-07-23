@@ -16,6 +16,7 @@ import { PlatformAdminsModule } from './platform-admins/platform-admins.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { ReportsModule } from './reports/reports.module';
 import { BusinessSettingsModule } from './business-settings/business-settings.module';
+import { DemoRequestsModule } from './demo-requests/demo-requests.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { BusinessSettingsModule } from './business-settings/business-settings.mo
     MetricsModule,
     ReportsModule,
     BusinessSettingsModule,
+    DemoRequestsModule,
   ],
 })
 export class AppModule {}
