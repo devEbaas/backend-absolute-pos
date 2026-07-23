@@ -172,6 +172,27 @@ model User {
   @@map("users")
 }
 
+// Solicitud de demo enviada desde el formulario público de marketing
+// (absolute-systems-web) por un visitante anónimo — sin cuenta ni Business
+// asociado todavía, a diferencia de License que ya cuelga de un Device
+// emparejado. Bandeja de entrada para el equipo comercial en
+// pos-root-dashboard.
+model DemoRequest {
+  id           String    @id @default(uuid()) @db.Uuid
+  name         String
+  businessName String?   @map("business_name")
+  // "offline" | "cloud" | "tablet" — mismas claves que posEditions en el
+  // sitio de marketing; sin enum de Postgres para no acoplar ambos repos a
+  // una migración compartida si cambia el catálogo de ediciones.
+  edition      String
+  contacted    Boolean   @default(false)
+  contactedAt  DateTime? @map("contacted_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([contacted])
+  @@map("demo_requests")
+}
+
 // ---------------------------------------------------------------------
 // Catalog
 // ---------------------------------------------------------------------

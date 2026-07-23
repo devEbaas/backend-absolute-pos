@@ -13,13 +13,21 @@ async function bootstrap() {
   // reverse proxy compartido) — sin esto, cualquier fetch desde el
   // navegador falla en preflight. DASHBOARD_ORIGINS: lista separada por
   // comas (ej. "https://dashboard.tu-dominio.com,http://localhost:5174").
-  // Sin esa variable, CORS queda deshabilitado (comportamiento previo).
-  const dashboardOrigins = (process.env.DASHBOARD_ORIGINS ?? '')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-  if (dashboardOrigins.length > 0) {
-    app.enableCors({ origin: dashboardOrigins });
+  // MARKETING_ORIGINS: mismo mecanismo para el sitio público
+  // (absolute-systems-web), que llama POST /demo-requests sin auth desde el
+  // navegador. Sin ninguna de las dos variables, CORS queda deshabilitado
+  // (comportamiento previo).
+  const parseOrigins = (value: string | undefined) =>
+    (value ?? '')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean);
+  const allowedOrigins = [
+    ...parseOrigins(process.env.DASHBOARD_ORIGINS),
+    ...parseOrigins(process.env.MARKETING_ORIGINS),
+  ];
+  if (allowedOrigins.length > 0) {
+    app.enableCors({ origin: allowedOrigins });
   }
 
   // El worker de sync del desktop (absolute-pos-app/src/main/sync/realtime.js)
