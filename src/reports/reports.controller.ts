@@ -106,6 +106,7 @@ export class ReportsController {
     return this.reports.products(req.auth!.businessId, {
       includeStock: query.includeStock!,
       search: query.search,
+      stockStatus: query.stockStatus,
       page: query.page!,
       limit: query.limit!,
     });

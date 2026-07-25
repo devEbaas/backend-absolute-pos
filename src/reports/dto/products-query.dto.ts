@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -26,6 +27,15 @@ export class ProductsQueryDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @ApiPropertyOptional({
+    enum: ['active', 'low', 'out'],
+    description:
+      'Filtra por estado de stock (solo aplica si includeStock=true).',
+  })
+  @IsOptional()
+  @IsIn(['active', 'low', 'out'])
+  stockStatus?: 'active' | 'low' | 'out';
 
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
