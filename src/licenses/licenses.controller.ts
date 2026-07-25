@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
@@ -12,6 +13,7 @@ import type { Request } from 'express';
 import { AdminAccessGuard } from '../common/guards/admin-access.guard';
 import { DeviceAuthGuard } from '../common/guards/device-auth.guard';
 import { LicensesService } from './licenses.service';
+import { GenerateLicenseKeyDto } from './dto/generate-license-key.dto';
 
 // Llamado por el desktop ya emparejado — mismo guard/estilo que
 // DevicesSelfController.GET /devices/me. El deviceId sale del token, nunca
@@ -48,6 +50,18 @@ export class LicensesAdminController {
   @Get()
   findAll(@Query('status') status?: string) {
     return this.licenses.findAll(status);
+  }
+
+  // Licencia manual HMAC (hardware_id -> key) — para instalaciones sin
+  // pairing (offline puro) que no pueden usar el flujo de arriba. El
+  // secreto nunca sale del backend; el dashboard solo pega el hardware_id
+  // y muestra la key que devuelve esto.
+  @Post('generate-key')
+  generateKey(@Body() dto: GenerateLicenseKeyDto) {
+    return {
+      hardwareId: dto.hardwareId,
+      licenseKey: this.licenses.generateManualKey(dto.hardwareId),
+    };
   }
 
   @Post(':id/approve')

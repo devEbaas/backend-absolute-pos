@@ -6,7 +6,11 @@ export class CreateCashCutDto {
   @IsUUID()
   sessionId: string;
 
-  @ApiProperty({ enum: ['total', 'partial'], default: 'total', required: false })
+  @ApiProperty({
+    enum: ['total', 'partial'],
+    default: 'total',
+    required: false,
+  })
   @IsOptional()
   @IsIn(['total', 'partial'])
   cutType?: string;

@@ -23,7 +23,11 @@ export class UpdateUserProfileDto {
   // nullable además de optional: manda null explícito para vaciar el campo
   // (un cajero puede no tener email/teléfono), omitirlo deja el valor actual
   // sin tocar — @IsOptional() de class-validator no valida null tampoco.
-  @ApiProperty({ required: false, nullable: true, example: 'juan@cafeaurora.com' })
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    example: 'juan@cafeaurora.com',
+  })
   @IsOptional()
   @IsEmail()
   email?: string | null;

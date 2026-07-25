@@ -34,10 +34,7 @@ export class UsersAdminController {
   constructor(private readonly users: UsersService) {}
 
   @Post()
-  create(
-    @Param('businessId') businessId: string,
-    @Body() dto: CreateUserDto,
-  ) {
+  create(@Param('businessId') businessId: string, @Body() dto: CreateUserDto) {
     return this.users.create(businessId, dto);
   }
 

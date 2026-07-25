@@ -103,7 +103,12 @@ export class ReportsController {
 
   @Get('products')
   products(@Req() req: Request, @Query() query: ProductsQueryDto) {
-    return this.reports.products(req.auth!.businessId, query.includeStock!);
+    return this.reports.products(req.auth!.businessId, {
+      includeStock: query.includeStock!,
+      search: query.search,
+      page: query.page!,
+      limit: query.limit!,
+    });
   }
 
   @Get('users')

@@ -24,6 +24,31 @@ export function generateTempPassword(): string {
   return randomBytes(9).toString('base64url');
 }
 
+// Mismo secreto y algoritmo que absolute-electron-pos
+// (src/main/services/license.service.js) y absolute-pos-mobile
+// (src/license/license.ts) — ambos clientes verifican esta clave
+// localmente sin red, así que el algoritmo debe seguir siendo idéntico.
+// El default preserva las claves ya emitidas; se puede rotar vía env sin
+// tocar código.
+const LICENSE_SECRET =
+  process.env.LICENSE_SECRET ??
+  'ABSOLUTE_POS_SECRET_KEY_2024_CHANGE_IN_PRODUCTION';
+
+export function generateLicenseKey(hardwareId: string): string {
+  const hash = createHash('sha256')
+    .update(`${hardwareId}|${LICENSE_SECRET}`)
+    .digest('hex');
+  return [
+    hash.slice(0, 8),
+    hash.slice(8, 12),
+    hash.slice(12, 16),
+    hash.slice(16, 20),
+    hash.slice(20, 32),
+  ]
+    .join('-')
+    .toUpperCase();
+}
+
 export function safeEqual(a: string, b: string): boolean {
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);

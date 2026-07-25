@@ -245,34 +245,73 @@ export class ReportsService {
     });
   }
 
-  async products(businessId: string, includeStock: boolean) {
-    const products = await this.prisma.product.findMany({
-      where: { businessId },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (!includeStock) return products;
+  // Mismo patrón de paginación que listSales (skip/take + count en
+  // paralelo, misma forma de respuesta { data, page, limit, total,
+  // totalPages }) — el catálogo de un negocio puede crecer a miles de
+  // productos y antes se cargaba completo en cada request.
+  async products(
+    businessId: string,
+    filters: {
+      includeStock: boolean;
+      search?: string;
+      page: number;
+      limit: number;
+    },
+  ) {
+    const where: Prisma.ProductWhereInput = {
+      businessId,
+      ...(filters.search && {
+        OR: [
+          { name: { contains: filters.search, mode: 'insensitive' } },
+          { barcode: { contains: filters.search, mode: 'insensitive' } },
+        ],
+      }),
+    };
 
-    const movements = await this.prisma.inventoryMovement.groupBy({
-      by: ['productId', 'type'],
-      where: { businessId },
-      _sum: { quantity: true },
-    });
-    const stockByProduct = new Map<string, number>();
-    for (const movement of movements) {
-      const signed =
-        movement.type === 'OUT'
-          ? -Number(movement._sum.quantity ?? 0)
-          : Number(movement._sum.quantity ?? 0);
-      stockByProduct.set(
-        movement.productId,
-        (stockByProduct.get(movement.productId) ?? 0) + signed,
-      );
+    const [products, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (filters.page - 1) * filters.limit,
+        take: filters.limit,
+      }),
+      this.prisma.product.count({ where }),
+    ]);
+
+    let data: ((typeof products)[number] & { stock?: number })[] = products;
+    if (filters.includeStock && products.length > 0) {
+      // Agrega movimientos solo de los productos de esta página, no de todo
+      // el negocio — antes se calculaba el stock de TODOS los productos en
+      // cada request aunque solo se mostrara una página.
+      const movements = await this.prisma.inventoryMovement.groupBy({
+        by: ['productId', 'type'],
+        where: { businessId, productId: { in: products.map((p) => p.id) } },
+        _sum: { quantity: true },
+      });
+      const stockByProduct = new Map<string, number>();
+      for (const movement of movements) {
+        const signed =
+          movement.type === 'OUT'
+            ? -Number(movement._sum.quantity ?? 0)
+            : Number(movement._sum.quantity ?? 0);
+        stockByProduct.set(
+          movement.productId,
+          (stockByProduct.get(movement.productId) ?? 0) + signed,
+        );
+      }
+      data = products.map((product) => ({
+        ...product,
+        stock: stockByProduct.get(product.id) ?? 0,
+      }));
     }
 
-    return products.map((product) => ({
-      ...product,
-      stock: stockByProduct.get(product.id) ?? 0,
-    }));
+    return {
+      data,
+      page: filters.page,
+      limit: filters.limit,
+      total,
+      totalPages: Math.ceil(total / filters.limit),
+    };
   }
 
   users(businessId: string) {
