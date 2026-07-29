@@ -108,6 +108,32 @@ model License {
   @@map("licenses")
 }
 
+// Solicitud de licencia del esquema 100% offline (fingerprint de hardware +
+// clave HMAC, ver absolute-pos-app/src/main/services/license.service.js) —
+// deliberadamente independiente de License/Device de arriba: no requiere que
+// la instalación esté emparejada ni tenga device_api_key, solo su
+// hardware_id. licenseKey se calcula con la misma fórmula que
+// generateLicenseKey() en el cliente (ver license-key.util.ts) para que la
+// app pueda activarla con el flujo de "pegar clave" que ya existe.
+model OfflineLicenseRequest {
+  id           String    @id @default(uuid()) @db.Uuid
+  hardwareId   String    @unique @map("hardware_id")
+  contactName  String?   @map("contact_name")
+  businessName String?   @map("business_name")
+  // "pending" | "approved" | "rejected"
+  status       String    @default("pending")
+  licenseKey   String?   @map("license_key")
+  requestedAt  DateTime  @default(now()) @map("requested_at")
+  resolvedAt   DateTime? @map("resolved_at")
+  // PlatformAdmin.id de quien aprobó/rechazó — sin relación FK formal, mismo
+  // criterio que License.activatedBy arriba.
+  resolvedBy   String?   @map("resolved_by") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([status])
+  @@map("offline_license_requests")
+}
+
 // Cuenta cross-tenant del operador de la plataforma (no pertenece a ningún
 // Business) — usada para loguearse en pos-root-dashboard y administrar
 // negocios/dispositivos sin depender de MASTER_API_KEY en el día a día. Ver
