@@ -2,9 +2,11 @@ import { ApiProperty } from '@nestjs/swagger';
 import {
   IsEmail,
   IsNotEmpty,
+  IsOptional,
   IsString,
   Matches,
   MaxLength,
+  MinLength,
 } from 'class-validator';
 
 export class CreateBusinessDto {
@@ -26,8 +28,9 @@ export class CreateBusinessDto {
   slug: string;
 
   // El negocio se crea junto con su primer usuario (role: admin) — ver
-  // BusinessesService.create(). Ese usuario recibe una password generada
-  // por el servidor, devuelta una sola vez en la respuesta.
+  // BusinessesService.create(). Si se omite `password`, ese usuario recibe
+  // una password generada por el servidor, devuelta una sola vez en la
+  // respuesta (mismo patrón que CreateUserDto.password).
   @ApiProperty({ example: 'Marisol Iglesias' })
   @IsString()
   @IsNotEmpty()
@@ -43,4 +46,10 @@ export class CreateBusinessDto {
   @IsNotEmpty()
   @MaxLength(30)
   ownerPhone: string;
+
+  @ApiProperty({ required: false, minLength: 6 })
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  password?: string;
 }

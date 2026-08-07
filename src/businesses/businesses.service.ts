@@ -29,6 +29,7 @@ export class BusinessesService {
       email: dto.ownerEmail,
       phone: dto.ownerPhone,
       role: 'admin',
+      password: dto.password,
     });
 
     return { business, owner };
