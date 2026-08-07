@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
@@ -11,6 +12,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { AdminAccessGuard } from '../common/guards/admin-access.guard';
 import { DeviceAuthGuard } from '../common/guards/device-auth.guard';
+import { GenerateLicenseKeyDto } from './dto/generate-license-key.dto';
 import { LicensesService } from './licenses.service';
 
 // Llamado por el desktop ya emparejado — mismo guard/estilo que
@@ -48,6 +50,14 @@ export class LicensesAdminController {
   @Get()
   findAll(@Query('status') status?: string) {
     return this.licenses.findAll(status);
+  }
+
+  // "Generar licencia manual" — instalaciones offline puro, sin pairing.
+  // No pasa por el flujo request/approve de abajo: firma directo a partir
+  // del hardwareId que el admin pega en el dashboard.
+  @Post('generate-key')
+  generateKey(@Body() dto: GenerateLicenseKeyDto) {
+    return this.licenses.generateKey(dto.hardwareId);
   }
 
   @Post(':id/approve')

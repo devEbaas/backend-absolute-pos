@@ -1,9 +1,21 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { generateOfflineLicenseKey } from '../common/license-signing.util';
 
 @Injectable()
 export class LicensesService {
   constructor(private readonly prisma: PrismaService) {}
+
+  // "Generar licencia manual" del dashboard — instalaciones offline puro,
+  // sin pairing ni fila de solicitud previa (a diferencia de request/approve
+  // arriba). Sin persistencia a propósito: es una calculadora protegida por
+  // AdminAccessGuard, no un registro de auditoría.
+  generateKey(hardwareId: string) {
+    return {
+      hardwareId,
+      licenseKey: generateOfflineLicenseKey(hardwareId.toUpperCase()),
+    };
+  }
 
   // Llamado por el desktop ya emparejado (DeviceAuthGuard). Idempotente: una
   // licencia pending/active existente se devuelve tal cual, sin duplicar

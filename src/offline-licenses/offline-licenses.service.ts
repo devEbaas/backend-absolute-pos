@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOfflineLicenseRequestDto } from './dto/create-offline-license-request.dto';
-import { generateOfflineLicenseKey } from './license-key.util';
+import { generateOfflineLicenseKey } from '../common/license-signing.util';
 
 @Injectable()
 export class OfflineLicensesService {
