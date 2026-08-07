@@ -117,4 +117,9 @@ export class ReportsController {
   users(@Req() req: Request) {
     return this.reports.users(req.auth!.businessId);
   }
+
+  @Get('promotions')
+  promotions(@Req() req: Request) {
+    return this.reports.promotions(req.auth!.businessId);
+  }
 }

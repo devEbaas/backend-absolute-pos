@@ -292,6 +292,7 @@ export class ReportsService {
       const [products, total] = await Promise.all([
         this.prisma.product.findMany({
           where,
+          include: { parentProduct: { select: { name: true } } },
           orderBy: { createdAt: 'desc' },
           skip: (filters.page - 1) * filters.limit,
           take: filters.limit,
@@ -299,7 +300,10 @@ export class ReportsService {
         this.prisma.product.count({ where }),
       ]);
       return {
-        data: products,
+        data: products.map(({ parentProduct, ...p }) => ({
+          ...p,
+          parentProductName: parentProduct?.name ?? null,
+        })),
         page: filters.page,
         limit: filters.limit,
         total,
@@ -309,6 +313,7 @@ export class ReportsService {
 
     const products = await this.prisma.product.findMany({
       where,
+      include: { parentProduct: { select: { name: true } } },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -331,12 +336,23 @@ export class ReportsService {
       );
     }
 
-    const withStock = products.map((product) => ({
+    // Las presentaciones (parentProductId truthy) nunca acumulan
+    // movimientos propios: sus ventas se descuentan del stock del padre
+    // (mismo criterio que absolute-pos-app). Reportar 0 sería engañoso, así
+    // que se deja el stock sin definir y se excluyen del resumen de
+    // alertas por bajo stock/agotado.
+    const withStock = products.map(({ parentProduct, ...product }) => ({
       ...product,
-      stock: stockByProduct.get(product.id) ?? 0,
+      parentProductName: parentProduct?.name ?? null,
+      stock: product.parentProductId
+        ? undefined
+        : stockByProduct.get(product.id) ?? 0,
     }));
     const statusById = new Map(
-      withStock.map((p) => [p.id, this.stockStatusOf(p.stock)]),
+      withStock.map((p) => [
+        p.id,
+        p.stock === undefined ? 'active' : this.stockStatusOf(p.stock),
+      ]),
     );
 
     const stockSummary = { active: 0, low: 0, out: 0 };
@@ -364,5 +380,23 @@ export class ReportsService {
 
   users(businessId: string) {
     return this.usersService.findAllForBusinessAdmin(businessId);
+  }
+
+  async promotions(businessId: string) {
+    const promotions = await this.prisma.promotion.findMany({
+      where: { businessId },
+      include: {
+        products: { include: { product: { select: { id: true, name: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return promotions.map(({ products, ...promo }) => ({
+      ...promo,
+      products: products.map((pp) => ({
+        id: pp.product.id,
+        name: pp.product.name,
+      })),
+    }));
   }
 }
