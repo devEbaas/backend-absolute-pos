@@ -14,6 +14,11 @@ export class SalesQueryDto extends DateRangeDto {
   @IsUUID()
   userId?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  sessionId?: string;
+
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
   @Type(() => Number)

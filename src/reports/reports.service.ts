@@ -155,6 +155,7 @@ export class ReportsService {
       to?: string;
       deviceId?: string;
       userId?: string;
+      sessionId?: string;
       page: number;
       limit: number;
     },
@@ -165,6 +166,7 @@ export class ReportsService {
       ...(createdAt && { createdAt }),
       ...(filters.deviceId && { deviceId: filters.deviceId }),
       ...(filters.userId && { userId: filters.userId }),
+      ...(filters.sessionId && { sessionId: filters.sessionId }),
     };
 
     const [sales, total] = await Promise.all([
