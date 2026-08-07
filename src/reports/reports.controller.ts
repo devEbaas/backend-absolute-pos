@@ -61,6 +61,7 @@ export class ReportsController {
       to: query.to,
       deviceId: query.deviceId,
       userId: query.userId,
+      sessionId: query.sessionId,
       page: query.page!,
       limit: query.limit!,
     });

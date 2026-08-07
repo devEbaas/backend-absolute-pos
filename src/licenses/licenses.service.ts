@@ -1,17 +1,20 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { generateLicenseKey } from '../common/crypto.util';
+import { generateOfflineLicenseKey } from '../common/license-signing.util';
 
 @Injectable()
 export class LicensesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // Licencia manual HMAC (hardware_id -> key), independiente del modelo
-  // License/pairing de arriba — mismo algoritmo que absolute-electron-pos
-  // y absolute-pos-mobile verifican localmente sin red. Cómputo puro, sin
-  // tocar la base de datos.
-  generateManualKey(hardwareId: string): string {
-    return generateLicenseKey(hardwareId);
+  // "Generar licencia manual" del dashboard — instalaciones offline puro,
+  // sin pairing ni fila de solicitud previa (a diferencia de request/approve
+  // arriba). Sin persistencia a propósito: es una calculadora protegida por
+  // AdminAccessGuard, no un registro de auditoría.
+  generateKey(hardwareId: string) {
+    return {
+      hardwareId,
+      licenseKey: generateOfflineLicenseKey(hardwareId.toUpperCase()),
+    };
   }
 
   // Llamado por el desktop ya emparejado (DeviceAuthGuard). Idempotente: una
