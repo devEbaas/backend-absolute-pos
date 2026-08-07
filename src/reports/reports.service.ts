@@ -247,18 +247,78 @@ export class ReportsService {
     });
   }
 
-  async products(businessId: string, includeStock: boolean) {
+  // Mismo umbral que absolute-pos-mobile/src/utils/stock.ts y
+  // pos-client-dashboard/src/lib/constants.ts — duplicado a propósito
+  // (ninguno de los 3 comparte un paquete común), debe mantenerse igual
+  // en los tres lugares si se cambia.
+  private static readonly LOW_STOCK_THRESHOLD = 10;
+
+  private stockStatusOf(stock: number): 'active' | 'low' | 'out' {
+    if (stock <= 0) return 'out';
+    if (stock <= ReportsService.LOW_STOCK_THRESHOLD) return 'low';
+    return 'active';
+  }
+
+  // Mismo patrón de paginación que listSales (skip/take + count en
+  // paralelo, misma forma de respuesta { data, page, limit, total,
+  // totalPages }) para el camino sin stock. Cuando se pide stock, el
+  // stock no es una columna — se deriva sumando InventoryMovement — así
+  // que para poder filtrar por estado y contar un resumen hay que traer
+  // todo el conjunto que matchea la búsqueda, clasificarlo, y recién ahí
+  // paginar en memoria (mismo trade-off que ya aceptan
+  // useResumenData.ts/useVentasData.ts al pedir hasta 1000 productos
+  // completos del lado del frontend).
+  async products(
+    businessId: string,
+    filters: {
+      includeStock: boolean;
+      search?: string;
+      stockStatus?: 'active' | 'low' | 'out';
+      page: number;
+      limit: number;
+    },
+  ) {
+    const where: Prisma.ProductWhereInput = {
+      businessId,
+      ...(filters.search && {
+        OR: [
+          { name: { contains: filters.search, mode: 'insensitive' } },
+          { barcode: { contains: filters.search, mode: 'insensitive' } },
+        ],
+      }),
+    };
+
+    if (!filters.includeStock) {
+      const [products, total] = await Promise.all([
+        this.prisma.product.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          skip: (filters.page - 1) * filters.limit,
+          take: filters.limit,
+        }),
+        this.prisma.product.count({ where }),
+      ]);
+      return {
+        data: products,
+        page: filters.page,
+        limit: filters.limit,
+        total,
+        totalPages: Math.ceil(total / filters.limit),
+      };
+    }
+
     const products = await this.prisma.product.findMany({
-      where: { businessId },
+      where,
       orderBy: { createdAt: 'desc' },
     });
-    if (!includeStock) return products;
 
-    const movements = await this.prisma.inventoryMovement.groupBy({
-      by: ['productId', 'type'],
-      where: { businessId },
-      _sum: { quantity: true },
-    });
+    const movements = products.length
+      ? await this.prisma.inventoryMovement.groupBy({
+          by: ['productId', 'type'],
+          where: { businessId, productId: { in: products.map((p) => p.id) } },
+          _sum: { quantity: true },
+        })
+      : [];
     const stockByProduct = new Map<string, number>();
     for (const movement of movements) {
       const signed =
@@ -271,10 +331,35 @@ export class ReportsService {
       );
     }
 
-    return products.map((product) => ({
+    const withStock = products.map((product) => ({
       ...product,
       stock: stockByProduct.get(product.id) ?? 0,
     }));
+    const statusById = new Map(
+      withStock.map((p) => [p.id, this.stockStatusOf(p.stock)]),
+    );
+
+    const stockSummary = { active: 0, low: 0, out: 0 };
+    for (const status of statusById.values()) {
+      stockSummary[status] += 1;
+    }
+
+    const filtered = filters.stockStatus
+      ? withStock.filter((p) => statusById.get(p.id) === filters.stockStatus)
+      : withStock;
+    const data = filtered.slice(
+      (filters.page - 1) * filters.limit,
+      filters.page * filters.limit,
+    );
+
+    return {
+      data,
+      page: filters.page,
+      limit: filters.limit,
+      total: filtered.length,
+      totalPages: Math.ceil(filtered.length / filters.limit),
+      stockSummary,
+    };
   }
 
   users(businessId: string) {
