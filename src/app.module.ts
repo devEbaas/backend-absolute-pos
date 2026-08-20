@@ -12,6 +12,7 @@ import { UsersModule } from './users/users.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { CashModule } from './cash/cash.module';
 import { SalesModule } from './sales/sales.module';
+import { QuotesModule } from './quotes/quotes.module';
 import { PlatformAdminsModule } from './platform-admins/platform-admins.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { ReportsModule } from './reports/reports.module';
@@ -35,6 +36,7 @@ import { OfflineLicensesModule } from './offline-licenses/offline-licenses.modul
     InventoryModule,
     CashModule,
     SalesModule,
+    QuotesModule,
     MetricsModule,
     ReportsModule,
     BusinessSettingsModule,

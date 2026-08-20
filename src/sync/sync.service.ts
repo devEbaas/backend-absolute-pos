@@ -14,6 +14,8 @@ const TABLE_ORDER = [
   'products',
   'promotions',
   'promotionProducts',
+  'quotes',
+  'quoteItems',
   'sales',
   'saleItems',
   'saleCancellations',

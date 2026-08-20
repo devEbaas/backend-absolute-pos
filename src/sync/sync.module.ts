@@ -9,6 +9,8 @@ import { UsersResource } from './resources/users.resource';
 import { CashSessionsResource } from './resources/cash-sessions.resource';
 import { PromotionsResource } from './resources/promotions.resource';
 import { PromotionProductsResource } from './resources/promotion-products.resource';
+import { QuotesResource } from './resources/quotes.resource';
+import { QuoteItemsResource } from './resources/quote-items.resource';
 import { SalesResource } from './resources/sales.resource';
 import { SaleItemsResource } from './resources/sale-items.resource';
 import { SaleCancellationsResource } from './resources/sale-cancellations.resource';
@@ -25,6 +27,8 @@ import { CashOutflowsResource } from './resources/cash-outflows.resource';
     CashSessionsResource,
     PromotionsResource,
     PromotionProductsResource,
+    QuotesResource,
+    QuoteItemsResource,
     SalesResource,
     SaleItemsResource,
     SaleCancellationsResource,
@@ -39,6 +43,8 @@ import { CashOutflowsResource } from './resources/cash-outflows.resource';
         cashSessions: CashSessionsResource,
         promotions: PromotionsResource,
         promotionProducts: PromotionProductsResource,
+        quotes: QuotesResource,
+        quoteItems: QuoteItemsResource,
         sales: SalesResource,
         saleItems: SaleItemsResource,
         saleCancellations: SaleCancellationsResource,
@@ -51,6 +57,8 @@ import { CashOutflowsResource } from './resources/cash-outflows.resource';
         cashSessions,
         promotions,
         promotionProducts,
+        quotes,
+        quoteItems,
         sales,
         saleItems,
         saleCancellations,
@@ -64,6 +72,8 @@ import { CashOutflowsResource } from './resources/cash-outflows.resource';
         CashSessionsResource,
         PromotionsResource,
         PromotionProductsResource,
+        QuotesResource,
+        QuoteItemsResource,
         SalesResource,
         SaleItemsResource,
         SaleCancellationsResource,

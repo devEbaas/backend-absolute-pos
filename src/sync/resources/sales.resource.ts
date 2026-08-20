@@ -27,6 +27,7 @@ export class SalesResource implements SyncResource<SaleSyncItemDto> {
       cancelledByUuid: row.cancelledBy,
       cancellationReason: row.cancellationReason,
       discountAmount: Number(row.discountAmount),
+      originQuoteUuid: row.originQuoteId,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
@@ -49,6 +50,13 @@ export class SalesResource implements SyncResource<SaleSyncItemDto> {
       const cancelledByUser = dto.cancelledByUuid
         ? await tx.user.findUnique({ where: { id: dto.cancelledByUuid } })
         : null;
+      // originQuoteId SÍ es una FK real en Postgres (a diferencia de
+      // Quote.convertedSaleId) — resolver con el mismo criterio soft de
+      // arriba para no rechazar la venta entera si, por lo que sea, la
+      // cotización nunca llegó a sincronizar.
+      const originQuote = dto.originQuoteUuid
+        ? await tx.quote.findUnique({ where: { id: dto.originQuoteUuid } })
+        : null;
 
       const fields = {
         businessId,
@@ -63,6 +71,7 @@ export class SalesResource implements SyncResource<SaleSyncItemDto> {
         cancelledBy: cancelledByUser?.id ?? null,
         cancellationReason: dto.cancellationReason ?? null,
         discountAmount: dto.discountAmount,
+        originQuoteId: originQuote?.id ?? null,
         createdAt: new Date(dto.createdAt),
         updatedAt: new Date(dto.updatedAt),
       };

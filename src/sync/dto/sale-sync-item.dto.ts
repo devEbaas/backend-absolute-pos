@@ -32,6 +32,10 @@ export class SaleSyncItemDto {
   @IsString()
   cancellationReason?: string | null;
   @ApiProperty() @IsNumber() discountAmount: number;
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  @IsUUID()
+  originQuoteUuid?: string | null;
   @ApiProperty() @IsISO8601() createdAt: string;
   @ApiProperty() @IsISO8601() updatedAt: string;
 }
