@@ -12,6 +12,8 @@ import { SaleCancellationSyncItemDto } from './sale-cancellation-sync-item.dto';
 import { InventoryMovementSyncItemDto } from './inventory-movement-sync-item.dto';
 import { CashCutSyncItemDto } from './cash-cut-sync-item.dto';
 import { CashOutflowSyncItemDto } from './cash-outflow-sync-item.dto';
+import { QuoteSyncItemDto } from './quote-sync-item.dto';
+import { QuoteItemSyncItemDto } from './quote-item-sync-item.dto';
 
 // One key per syncable table, each an array of changed rows since the
 // device's local cursor. Order here has no bearing on processing order —
@@ -51,6 +53,20 @@ export class SyncPushDto {
   @ValidateNested({ each: true })
   @Type(() => PromotionProductSyncItemDto)
   promotionProducts?: PromotionProductSyncItemDto[];
+
+  @ApiProperty({ type: [QuoteSyncItemDto], required: false })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => QuoteSyncItemDto)
+  quotes?: QuoteSyncItemDto[];
+
+  @ApiProperty({ type: [QuoteItemSyncItemDto], required: false })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => QuoteItemSyncItemDto)
+  quoteItems?: QuoteItemSyncItemDto[];
 
   @ApiProperty({ type: [SaleSyncItemDto], required: false })
   @IsOptional()
