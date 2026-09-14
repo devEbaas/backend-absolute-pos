@@ -34,4 +34,20 @@ export class WebQuoteRequestsService {
     }
     return this.prisma.webQuoteRequest.findUniqueOrThrow({ where: { id } });
   }
+
+  // Independiente de markContacted: la mayoría de las confirmaciones llegan
+  // por WhatsApp o en persona, así que un admin la marca a mano desde el
+  // dashboard sin que esta fila haya pasado por "contactada" primero.
+  async markConfirmed(id: string) {
+    const claim = await this.prisma.webQuoteRequest.updateMany({
+      where: { id, confirmed: false },
+      data: { confirmed: true, confirmedAt: new Date() },
+    });
+    if (claim.count === 0) {
+      throw new NotFoundException(
+        'Solicitud de cotización no encontrada o ya marcada como confirmada',
+      );
+    }
+    return this.prisma.webQuoteRequest.findUniqueOrThrow({ where: { id } });
+  }
 }

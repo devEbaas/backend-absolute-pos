@@ -238,9 +238,16 @@ model WebQuoteRequest {
   message     String?
   contacted   Boolean   @default(false)
   contactedAt DateTime? @map("contacted_at")
+  // La mayoría de las confirmaciones reales llegan por WhatsApp o en
+  // persona, no por este formulario — este campo lo activa un admin a mano
+  // desde el dashboard, independiente de `contacted` y de si esta fila
+  // llegó como duda/comentario en vez de una confirmación.
+  confirmed   Boolean   @default(false)
+  confirmedAt DateTime? @map("confirmed_at")
   createdAt   DateTime  @default(now()) @map("created_at")
 
   @@index([contacted])
+  @@index([confirmed])
   @@map("web_quote_requests")
 }
 
