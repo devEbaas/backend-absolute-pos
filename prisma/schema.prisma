@@ -223,6 +223,27 @@ model DemoRequest {
   @@map("demo_requests")
 }
 
+// Lead enviado desde el formulario de confirmación de una cotización
+// publicada en el sitio de marketing (absolute-systems-web) — mismo patrón
+// que DemoRequest (sin cuenta ni Business todavía). No confundir con Quote/
+// QuoteItem: aquello es una feature del POS para que un Business ya dado de
+// alta cotice a SUS clientes; esto es un lead entrante de una cotización
+// nuestra a un prospecto. quoteCode identifica de qué página de cotización
+// vino (ej. "COT-IZML-VLS"), para reusar esta misma tabla en la siguiente.
+model WebQuoteRequest {
+  id          String    @id @default(uuid()) @db.Uuid
+  quoteCode   String    @map("quote_code")
+  name        String
+  contact     String
+  message     String?
+  contacted   Boolean   @default(false)
+  contactedAt DateTime? @map("contacted_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([contacted])
+  @@map("web_quote_requests")
+}
+
 // ---------------------------------------------------------------------
 // Catalog
 // ---------------------------------------------------------------------

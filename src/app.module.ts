@@ -19,6 +19,7 @@ import { ReportsModule } from './reports/reports.module';
 import { BusinessSettingsModule } from './business-settings/business-settings.module';
 import { DemoRequestsModule } from './demo-requests/demo-requests.module';
 import { OfflineLicensesModule } from './offline-licenses/offline-licenses.module';
+import { WebQuoteRequestsModule } from './web-quote-requests/web-quote-requests.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { OfflineLicensesModule } from './offline-licenses/offline-licenses.modul
     BusinessSettingsModule,
     DemoRequestsModule,
     OfflineLicensesModule,
+    WebQuoteRequestsModule,
   ],
 })
 export class AppModule {}
