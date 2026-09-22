@@ -23,6 +23,7 @@ export class AuthController {
     return this.auth.login(
       req.device!.businessId,
       req.device!.id,
+      req.device!.label,
       dto.username,
       dto.password,
     );

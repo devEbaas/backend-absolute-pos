@@ -79,9 +79,10 @@ model Device {
   revokedAt  DateTime? @map("revoked_at")
   createdAt  DateTime  @default(now()) @map("created_at")
 
-  sales   Sale[]
-  quotes  Quote[]
-  license License?
+  sales        Sale[]
+  quotes       Quote[]
+  license      License?
+  cashSessions CashSession[]
 
   @@index([businessId])
   @@map("devices")
@@ -317,6 +318,9 @@ model Sale {
   cancelledBy        String?      @map("cancelled_by") @db.Uuid
   cancellationReason String?      @map("cancellation_reason")
   discountAmount     Decimal      @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  // Lo que el cliente entregó y el cambio devuelto (M1, specs/22 §2). Solo los llena el REST móvil; no viajan por sync.
+  paymentAmount      Decimal?     @map("payment_amount") @db.Decimal(12, 2)
+  changeAmount       Decimal?     @map("change_amount") @db.Decimal(12, 2)
   // Cotización de la que nació esta venta, si aplica (ver Quote.convertedSaleId
   // para la dirección inversa). Relación real: las cotizaciones sincronizan
   // antes que las ventas dentro del mismo ciclo (ver TABLE_ORDER en
@@ -441,6 +445,11 @@ model CashSession {
   user          User      @relation(fields: [userId], references: [id])
   openingAmount Decimal   @default(0) @map("opening_amount") @db.Decimal(12, 2)
   status        String    @default("open")
+  // Dispositivo que abrió la sesión. Solo lo llena el REST móvil (specs/22 §2): el sync del escritorio no lo manda
+  // ni lo lee, así que sus filas quedan en NULL. Sirve para "una sesión abierta por (dispositivo, usuario)" y para
+  // acotar sesión y cortes al dispositivo que los escribió.
+  deviceId      String?   @map("device_id") @db.Uuid
+  device        Device?   @relation(fields: [deviceId], references: [id])
   registerId    String    @default("PRINCIPAL") @map("register_id")
   openedAt      DateTime  @map("opened_at")
   closedAt      DateTime? @map("closed_at")

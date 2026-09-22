@@ -2,8 +2,8 @@ import {
   Body,
   Controller,
   Get,
-  NotFoundException,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Req,
@@ -11,12 +11,9 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { randomUUID } from 'crypto';
-import { DeviceAuthGuard } from '../common/guards/device-auth.guard';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { JwtAuthGuard, MobileAuthGuard } from '../common/guards/jwt-auth.guard';
 import { ProductsService } from './products.service';
 import { CreateProductDto, UpdateProductDto } from './dto/create-product.dto';
-import { ProductSyncItemDto } from '../sync/dto/product-sync-item.dto';
 
 @ApiTags('products')
 @ApiBearerAuth('bearer')
@@ -24,71 +21,30 @@ import { ProductSyncItemDto } from '../sync/dto/product-sync-item.dto';
 export class ProductsController {
   constructor(private readonly products: ProductsService) {}
 
-  @UseGuards(DeviceAuthGuard)
-  @Get()
-  findAll(@Req() req: Request) {
-    return this.products.findMany(req.device!.businessId);
+  // specs/22 §3.2 — catálogo móvil con existencias (JWT, cualquier rol).
+  @UseGuards(MobileAuthGuard)
+  @Get('with-stock')
+  findAllWithStock(@Req() req: Request) {
+    return this.products.findManyWithStock(req.auth!.businessId);
   }
 
-  // Reuses the same write path as /sync/push (ProductsService.upsertFromSync
-  // — see its own comment) so a mobile-created product and a
-  // desktop-synced one can never drift apart.
+  // specs/22 §6.1 (B5) — alta con `id` (idempotente) e `initialStock`; responde con la forma de §3.2. Sigue con
+  // `JwtAuthGuard` y no `MobileAuthGuard`: el dashboard del dueño (token sin `deviceId`) también crea productos aquí, y
+  // las reglas extra de la app (`id` obligatorio, precio y costo) se aplican solo a los tokens de dispositivo.
   @UseGuards(JwtAuthGuard)
   @Post()
-  async create(@Req() req: Request, @Body() dto: CreateProductDto) {
-    const { businessId, deviceId } = req.auth!;
-    const now = new Date().toISOString();
-    const syncDto: ProductSyncItemDto = {
-      uuid: randomUUID(),
-      barcode: dto.barcode ?? null,
-      name: dto.name,
-      description: dto.description ?? null,
-      salePrice: dto.salePrice,
-      purchaseCost: dto.purchaseCost,
-      tipoVenta: dto.tipoVenta ?? 'UNIDAD',
-      imagePath: dto.imagePath ?? null,
-      active: dto.active ?? true,
-      parentProductUuid: dto.parentProductId ?? null,
-      unitsPerPack: dto.unitsPerPack ?? 1,
-      location: dto.location ?? null,
-      createdAt: now,
-      updatedAt: now,
-    };
-    await this.products.upsertFromSync(businessId, deviceId, syncDto);
-    return this.products.findOne(businessId, syncDto.uuid);
+  create(@Req() req: Request, @Body() dto: CreateProductDto) {
+    return this.products.create(req.auth!, dto);
   }
 
+  // Edición y ajuste de stock por valor absoluto (`stock`). La baja lógica es `{ "active": false }`.
   @UseGuards(JwtAuthGuard)
   @Patch(':id')
-  async update(
+  update(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProductDto,
   ) {
-    const { businessId, deviceId } = req.auth!;
-    const existing = await this.products.findOne(businessId, id);
-    if (!existing) {
-      throw new NotFoundException('Producto no encontrado');
-    }
-
-    const syncDto: ProductSyncItemDto = {
-      uuid: id,
-      barcode: dto.barcode ?? existing.barcode,
-      name: dto.name ?? existing.name,
-      description: dto.description ?? existing.description,
-      salePrice: dto.salePrice ?? Number(existing.salePrice),
-      purchaseCost: dto.purchaseCost ?? Number(existing.purchaseCost),
-      tipoVenta: dto.tipoVenta ?? existing.tipoVenta,
-      imagePath: dto.imagePath ?? existing.imagePath,
-      active: dto.active ?? existing.active,
-      parentProductUuid:
-        dto.parentProductId ?? existing.parentProductId ?? null,
-      unitsPerPack: dto.unitsPerPack ?? Number(existing.unitsPerPack),
-      location: dto.location ?? existing.location,
-      createdAt: existing.createdAt.toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    await this.products.upsertFromSync(businessId, deviceId, syncDto);
-    return this.products.findOne(businessId, id);
+    return this.products.update(req.auth!, id, dto);
   }
 }

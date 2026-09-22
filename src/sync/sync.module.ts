@@ -83,16 +83,5 @@ import { CashOutflowsResource } from './resources/cash-outflows.resource';
       ],
     },
   ],
-  // Mobile-facing modules (sales, inventory, cash) reuse these directly so
-  // there's exactly one write path per table — see SyncService's own
-  // "single write path per resource" comment.
-  exports: [
-    SalesResource,
-    SaleItemsResource,
-    InventoryMovementsResource,
-    CashSessionsResource,
-    CashCutsResource,
-    CashOutflowsResource,
-  ],
 })
 export class SyncModule {}
