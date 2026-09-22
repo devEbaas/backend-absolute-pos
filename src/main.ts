@@ -1,8 +1,7 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { WsAdapter } from '@nestjs/platform-ws';
 import { AppModule } from './app.module';
+import { configureApp } from './app.setup';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { version } = require('../../package.json') as { version: string };
 
@@ -30,18 +29,7 @@ async function bootstrap() {
     app.enableCors({ origin: allowedOrigins });
   }
 
-  // El worker de sync del desktop (absolute-pos-app/src/main/sync/realtime.js)
-  // habla WebSocket plano (librería `ws`), no Socket.IO — este adapter expone
-  // /ws con ese mismo protocolo.
-  app.useWebSocketAdapter(new WsAdapter(app));
-
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      forbidNonWhitelisted: true,
-    }),
-  );
+  configureApp(app);
 
   const config = new DocumentBuilder()
     .setTitle('Absolute POS — Cloud API')

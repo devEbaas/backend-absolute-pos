@@ -12,6 +12,7 @@ import { UsersModule } from './users/users.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { CashModule } from './cash/cash.module';
 import { SalesModule } from './sales/sales.module';
+import { PromotionsModule } from './promotions/promotions.module';
 import { QuotesModule } from './quotes/quotes.module';
 import { PlatformAdminsModule } from './platform-admins/platform-admins.module';
 import { MetricsModule } from './metrics/metrics.module';
@@ -37,6 +38,7 @@ import { WebQuoteRequestsModule } from './web-quote-requests/web-quote-requests.
     InventoryModule,
     CashModule,
     SalesModule,
+    PromotionsModule,
     QuotesModule,
     MetricsModule,
     ReportsModule,

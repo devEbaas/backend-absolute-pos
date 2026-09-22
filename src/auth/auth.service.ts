@@ -6,6 +6,11 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { comparePassword } from '../common/password.util';
+import {
+  COMPANY_FIELDS_WITHOUT_LOGO,
+  FIELD_TO_KEY,
+  toCompanyInfo,
+} from '../business-settings/company.util';
 
 @Injectable()
 export class AuthService {
@@ -21,6 +26,7 @@ export class AuthService {
   async login(
     businessId: string,
     deviceId: string,
+    deviceLabel: string,
     username: string,
     password: string,
   ) {
@@ -49,6 +55,22 @@ export class AuthService {
       username: user.username,
     });
 
+    // specs/22 §3.1: la app móvil necesita el negocio, el nombre con el que se emparejó este dispositivo (es el
+    // `registerId` de sus cajas y ventas, que pone el servidor; la app solo lo muestra) y los datos de empresa para el ticket — sin `logo`, que pesa mucho y cuyo endpoint (`GET
+    // /business-settings`) exige admin, así que un cajero no podría leerlo. Solo se AGREGAN campos: RN sigue leyendo
+    // `token` y `user` igual que antes.
+    const [business, settings] = await Promise.all([
+      this.prisma.business.findUniqueOrThrow({ where: { id: businessId } }),
+      this.prisma.businessSetting.findMany({
+        where: {
+          businessId,
+          key: {
+            in: COMPANY_FIELDS_WITHOUT_LOGO.map((field) => FIELD_TO_KEY[field]),
+          },
+        },
+      }),
+    ]);
+
     return {
       token,
       user: {
@@ -57,6 +79,9 @@ export class AuthService {
         username: user.username,
         role: user.role,
       },
+      business: { id: business.id, name: business.name, slug: business.slug },
+      device: { id: deviceId, label: deviceLabel },
+      company: toCompanyInfo(settings, COMPANY_FIELDS_WITHOUT_LOGO),
     };
   }
 
