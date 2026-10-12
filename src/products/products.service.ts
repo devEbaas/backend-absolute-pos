@@ -36,6 +36,42 @@ const normalizeBarcode = (barcode: string | null | undefined) =>
 const isGiven = <T>(value: T | null | undefined): value is T =>
   value !== undefined && value !== null;
 
+/** Un `Decimal` de Prisma sale como string en JSON; el cliente siempre recibe número o `null`. */
+function jsonDecimal(
+  value: { valueOf(): number | string } | number | null | undefined,
+): number | null {
+  if (value == null) return null;
+  return Number(value);
+}
+
+/**
+ * Valor de `min_stock` a persistir. El tipo se evalúa primero: presentación, `PRECIO_LIBRE` o
+ * `SERVICIO` quedan en `null` aunque llegue un número o no llegue la clave.
+ * En un raíz que maneja stock, `undefined` (clave ausente) no toca la columna; `null` la borra.
+ * No usa `isGiven`: ese helper trata `null` igual que ausente y el celular en nube no podría borrar.
+ * Un número `< 0` lanza 400 y no se escribe.
+ */
+function minStockWrite(
+  tipoVenta: string,
+  parentProductId: string | null,
+  incoming: number | null | undefined,
+): number | null | undefined {
+  if (parentProductId || !manejaStock(tipoVenta)) return null;
+  if (incoming === undefined) return undefined;
+  if (incoming === null) return null;
+  if (!Number.isFinite(incoming) || incoming < 0) {
+    throw new BadRequestException('El mínimo debe ser mayor o igual a 0');
+  }
+  return round4(incoming);
+}
+
+/** `undefined` se omite del `data` de Prisma para no pisar el valor guardado. */
+function minStockData(
+  minStock: number | null | undefined,
+): { minStock: number | null } | Record<string, never> {
+  return minStock === undefined ? {} : { minStock };
+}
+
 function barcodeTaken() {
   return businessError(
     HttpStatus.CONFLICT,
@@ -116,7 +152,9 @@ export class ProductsService implements SyncResource<ProductSyncItemDto> {
       stock: own,
       parentName: parent?.name ?? null,
       parentStock,
+      parentMinStock: parent ? jsonDecimal(parent.minStock) : null,
       effectiveStock,
+      minStock: jsonDecimal(row.minStock),
     };
   }
 
@@ -188,6 +226,7 @@ export class ProductsService implements SyncResource<ProductSyncItemDto> {
     await this.validateParent(tx, businessId, id, parentProductId);
     const barcode = normalizeBarcode(dto.barcode);
     await this.assertBarcodeFree(tx, businessId, barcode, id);
+    const minStock = minStockWrite(tipoVenta, parentProductId, dto.minStock);
 
     const now = new Date();
     await tx.product.create({
@@ -205,6 +244,7 @@ export class ProductsService implements SyncResource<ProductSyncItemDto> {
         parentProductId,
         unitsPerPack: round4(dto.unitsPerPack ?? 1),
         location: dto.location ?? null,
+        ...minStockData(minStock),
         createdAt: now,
       },
     });
@@ -274,6 +314,7 @@ export class ProductsService implements SyncResource<ProductSyncItemDto> {
       dto.parentProductId !== undefined
         ? dto.parentProductId
         : existing.parentProductId;
+    const minStock = minStockWrite(tipoVenta, parentProductId, dto.minStock);
 
     // Solo se revalida lo que este PATCH toca: un producto viejo con costo 0 (creado desde el dashboard) debe poder
     // renombrarse desde la app sin que le exijan un costo.
@@ -328,6 +369,7 @@ export class ProductsService implements SyncResource<ProductSyncItemDto> {
           ? round4(dto.unitsPerPack)
           : existing.unitsPerPack,
         location: dto.location !== undefined ? dto.location : existing.location,
+        ...minStockData(minStock),
       },
     });
     await tx.syncLogEntry.create({
@@ -484,6 +526,7 @@ export class ProductsService implements SyncResource<ProductSyncItemDto> {
       parentProductUuid: row.parentProductId,
       unitsPerPack: Number(row.unitsPerPack),
       location: row.location,
+      minStock: jsonDecimal(row.minStock),
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
@@ -507,6 +550,16 @@ export class ProductsService implements SyncResource<ProductSyncItemDto> {
       const parent = dto.parentProductUuid
         ? await tx.product.findUnique({ where: { id: dto.parentProductUuid } })
         : null;
+      const storedParentId = parent?.id ?? null;
+      // El tipo gana: si el push declara padre, es presentación y el mínimo queda
+      // en null aunque el padre todavía no exista (el FK sigue perdonándose en null).
+      const minStock = minStockWrite(
+        dto.tipoVenta,
+        dto.parentProductUuid
+          ? (storedParentId ?? dto.parentProductUuid)
+          : null,
+        dto.minStock,
+      );
 
       const fields = {
         businessId,
@@ -518,9 +571,10 @@ export class ProductsService implements SyncResource<ProductSyncItemDto> {
         tipoVenta: dto.tipoVenta,
         imagePath: dto.imagePath ?? null,
         active: dto.active,
-        parentProductId: parent?.id ?? null,
+        parentProductId: storedParentId,
         unitsPerPack: dto.unitsPerPack,
         location: dto.location ?? null,
+        ...minStockData(minStock),
         createdAt: new Date(dto.createdAt),
         updatedAt: new Date(dto.updatedAt),
       };

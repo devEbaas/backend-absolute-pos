@@ -67,6 +67,13 @@ export class ProductSyncItemDto {
   @IsString()
   location?: string | null;
 
+  // Opcional: un cliente que todavía no lo manda no recibe 400. `null` borra;
+  // la clave ausente no es `null` (eso lo resuelve `upsertFromSync`, no `isGiven`).
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  @IsNumber()
+  minStock?: number | null;
+
   @ApiProperty()
   @IsISO8601()
   createdAt: string;
