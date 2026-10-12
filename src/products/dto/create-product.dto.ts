@@ -73,6 +73,13 @@ export class CreateProductDto {
   @IsString()
   location?: string | null;
 
+  // Umbral mínimo. Opcional: omitirlo no es 400 ni borra el valor guardado (`UpdateProductDto` lo hereda).
+  // `null` sí borra. Un número < 0 lo rechaza el servicio con 400, después de aplicar el tipo.
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  @IsNumber()
+  minStock?: number | null;
+
   // Existencia con la que nace el producto: un `IN` `INITIAL_STOCK` en la misma transacción. Se ignora en las
   // presentaciones y en los tipos sin inventario.
   @ApiProperty({ required: false, minimum: 0 })
@@ -83,6 +90,7 @@ export class CreateProductDto {
 }
 
 // La identidad (`id`) y el stock inicial son del alta: aquí `forbidNonWhitelisted` los rechaza con 400.
+// `minStock` se hereda de `CreateProductDto`: ausente conserva, `null` borra.
 export class UpdateProductDto extends PartialType(
   OmitType(CreateProductDto, ['id', 'initialStock'] as const),
 ) {

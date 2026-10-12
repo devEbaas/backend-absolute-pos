@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { normalizePaymentMethod } from '../common/payment-method.util';
+import { manejaStock } from '../stock/stock.service';
 
 function dateRangeFilter(
   from?: string,
@@ -13,6 +14,14 @@ function dateRangeFilter(
     ...(from ? { gte: new Date(from) } : {}),
     ...(to ? { lte: new Date(to) } : {}),
   };
+}
+
+/** Un `Decimal` de Prisma sale como string en JSON; el panel compara números. */
+function jsonDecimal(
+  value: { valueOf(): number | string } | number | null | undefined,
+): number | null {
+  if (value == null) return null;
+  return Number(value);
 }
 
 @Injectable()
@@ -247,15 +256,17 @@ export class ReportsService {
     });
   }
 
-  // Mismo umbral que absolute-pos-mobile/src/utils/stock.ts y
-  // pos-client-dashboard/src/lib/constants.ts — duplicado a propósito
-  // (ninguno de los 3 comparte un paquete común), debe mantenerse igual
-  // en los tres lugares si se cambia.
+  // Fallback cuando el producto no tiene minStock. El mismo 10 vive en
+  // pos-business-dashboard/src/lib/constants.ts (LOW_STOCK_THRESHOLD).
+  // Si cambia este respaldo, hay que cambiarlo allá también.
   private static readonly LOW_STOCK_THRESHOLD = 10;
 
-  private stockStatusOf(stock: number): 'active' | 'low' | 'out' {
+  private stockStatusOf(
+    stock: number,
+    minStock: number | null,
+  ): 'active' | 'low' | 'out' {
     if (stock <= 0) return 'out';
-    if (stock <= ReportsService.LOW_STOCK_THRESHOLD) return 'low';
+    if (stock <= (minStock ?? ReportsService.LOW_STOCK_THRESHOLD)) return 'low';
     return 'active';
   }
 
@@ -302,6 +313,7 @@ export class ReportsService {
       return {
         data: products.map(({ parentProduct, ...p }) => ({
           ...p,
+          minStock: jsonDecimal(p.minStock),
           parentProductName: parentProduct?.name ?? null,
         })),
         page: filters.page,
@@ -340,18 +352,24 @@ export class ReportsService {
     // movimientos propios: sus ventas se descuentan del stock del padre
     // (mismo criterio que absolute-pos-app). Reportar 0 sería engañoso, así
     // que se deja el stock sin definir y se excluyen del resumen de
-    // alertas por bajo stock/agotado.
+    // alertas por bajo stock/agotado. Lo mismo con PRECIO_LIBRE y SERVICIO:
+    // no manejan inventario y su 0 no es "agotado" (como en la caja y el
+    // celular), aunque conserven movimientos de cuando eran otro tipo.
     const withStock = products.map(({ parentProduct, ...product }) => ({
       ...product,
+      minStock: jsonDecimal(product.minStock),
       parentProductName: parentProduct?.name ?? null,
-      stock: product.parentProductId
-        ? undefined
-        : stockByProduct.get(product.id) ?? 0,
+      stock:
+        product.parentProductId || !manejaStock(product.tipoVenta)
+          ? undefined
+          : (stockByProduct.get(product.id) ?? 0),
     }));
     const statusById = new Map(
       withStock.map((p) => [
         p.id,
-        p.stock === undefined ? 'active' : this.stockStatusOf(p.stock),
+        p.stock === undefined
+          ? 'active'
+          : this.stockStatusOf(p.stock, p.minStock),
       ]),
     );
 

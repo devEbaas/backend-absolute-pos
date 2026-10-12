@@ -275,6 +275,9 @@ model Product {
   parentProduct   Product?  @relation("ProductParent", fields: [parentProductId], references: [id])
   childProducts   Product[] @relation("ProductParent")
   unitsPerPack    Decimal   @default(1) @map("units_per_pack") @db.Decimal(12, 4)
+  // Umbral mínimo de existencia. NULL: cada pantalla usa su fallback. No es stock:
+  // el stock sigue derivándose de los movimientos y esta columna no tiene default.
+  minStock        Decimal?  @map("min_stock") @db.Decimal(12, 4)
   location        String?
   createdAt       DateTime  @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
