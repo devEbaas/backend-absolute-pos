@@ -315,6 +315,51 @@ describe('POST /sales (specs/22 §4.1)', () => {
     });
   });
 
+  // spec-reportes-detallados-ganancia.md R1 (desktop): el costo se congela en la línea al vender.
+  describe('costo congelado (unitCost)', () => {
+    const costOf = async (itemId: string) =>
+      Number(
+        (await h.prisma.saleItem.findUniqueOrThrow({ where: { id: itemId } }))
+          .unitCost,
+      );
+
+    it('producto raíz: guarda su purchaseCost', async () => {
+      const body = sale([line(agua.id, 1, 15)]);
+      await post(body).expect(201);
+      expect(await costOf(body.items[0].id)).toBe(5); // seedProduct: purchaseCost 5
+    });
+
+    it('presentación con costo propio: guarda el suyo', async () => {
+      await h.prisma.product.update({
+        where: { id: six.id },
+        data: { purchaseCost: 70 },
+      });
+      const body = sale([line(six.id, 1, 90)]);
+      await post(body).expect(201);
+      expect(await costOf(body.items[0].id)).toBe(70);
+    });
+
+    it('presentación sin costo: padre × unidades por paquete', async () => {
+      await h.prisma.product.update({
+        where: { id: six.id },
+        data: { purchaseCost: 0 },
+      });
+      const body = sale([line(six.id, 1, 90)]);
+      await post(body).expect(201);
+      expect(await costOf(body.items[0].id)).toBe(30); // 5 × 6
+    });
+
+    it('editar el costo después no cambia el de la venta ya hecha', async () => {
+      const body = sale([line(agua.id, 1, 15)]);
+      await post(body).expect(201);
+      await h.prisma.product.update({
+        where: { id: agua.id },
+        data: { purchaseCost: 99 },
+      });
+      expect(await costOf(body.items[0].id)).toBe(5);
+    });
+  });
+
   describe('total, descuento y pago', () => {
     it('total = Σ subtotales recalculados − descuento', async () => {
       const res = await post(

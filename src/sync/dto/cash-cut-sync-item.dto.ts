@@ -38,6 +38,16 @@ export class CashCutSyncItemDto {
   @ApiProperty() @IsInt() transactionCount: number;
   @ApiProperty() @IsNumber() totalOutflows: number;
   @ApiProperty() @IsInt() outflowCount: number;
+  // Opcionales: ganancia congelada al cerrar. Cortes de cajas anteriores a la
+  // feature de ganancia no los mandan y quedan null.
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  @IsNumber()
+  totalCost?: number | null;
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  @IsNumber()
+  totalProfit?: number | null;
   @ApiProperty({ required: false, nullable: true })
   @IsOptional()
   @IsString()

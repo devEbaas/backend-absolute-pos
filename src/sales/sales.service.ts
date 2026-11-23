@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto';
 import { businessError } from '../common/business-error';
 import type { MobileAuthPayload } from '../common/guards/jwt-auth.guard';
 import { round2, round4 } from '../common/money.util';
+import { saleUnitCost, type CostSource } from '../common/sale-cost.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { manejaStock, StockService } from '../stock/stock.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
@@ -18,6 +19,17 @@ type Tx = Prisma.TransactionClient;
 const EPS = 1e-9;
 
 /** Unidad con la que se nombra el stock en los mensajes (specs/01 §9.4.3): según el tipo del producto de INVENTARIO. */
+/** Prisma devuelve Decimal; la regla de costo trabaja en number. */
+function costSource(p: {
+  purchaseCost: Prisma.Decimal;
+  unitsPerPack: Prisma.Decimal;
+}): CostSource {
+  return {
+    purchaseCost: Number(p.purchaseCost),
+    unitsPerPack: Number(p.unitsPerPack),
+  };
+}
+
 function unitOf(tipoVenta: string): string {
   const tipo = tipoVenta.trim().toUpperCase();
   return tipo === 'PESO' ? 'kg' : tipo === 'METRO' ? 'm' : 'piezas';
@@ -134,6 +146,7 @@ export class SalesService {
       subtotal: number;
       isLinked: boolean;
       inventoryProductId: string;
+      unitCost: number;
       unitsToDeduct: number;
       touchesStock: boolean;
     }
@@ -163,6 +176,11 @@ export class SalesService {
         subtotal,
         isLinked,
         inventoryProductId,
+        // Costo congelado al vender: la ganancia de esta venta no cambia si después se edita el costo del producto.
+        unitCost: saleUnitCost(
+          costSource(product),
+          isLinked ? costSource(byId.get(inventoryProductId)!) : null,
+        ),
         unitsToDeduct: isLinked
           ? item.quantity * Number(product.unitsPerPack)
           : item.quantity,
@@ -244,6 +262,7 @@ export class SalesService {
           unitPrice: line.unitPrice,
           subtotal: line.subtotal,
           linkedProductName,
+          unitCost: line.unitCost,
         },
       });
       await tx.syncLogEntry.create({

@@ -12,4 +12,10 @@ export class SaleItemSyncItemDto {
   @IsOptional()
   @IsString()
   linkedProductName?: string | null;
+  // Opcional: costo unitario congelado al vender. Las cajas anteriores a la
+  // feature de ganancia no lo mandan y queda null.
+  @ApiProperty({ required: false, nullable: true })
+  @IsOptional()
+  @IsNumber()
+  unitCost?: number | null;
 }

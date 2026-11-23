@@ -25,6 +25,7 @@ export class SaleItemsResource implements SyncResource<SaleItemSyncItemDto> {
       unitPrice: Number(row.unitPrice),
       subtotal: Number(row.subtotal),
       linkedProductName: row.linkedProductName,
+      unitCost: row.unitCost !== null ? Number(row.unitCost) : null,
     };
   }
 
@@ -41,6 +42,7 @@ export class SaleItemsResource implements SyncResource<SaleItemSyncItemDto> {
         unitPrice: dto.unitPrice,
         subtotal: dto.subtotal,
         linkedProductName: dto.linkedProductName ?? null,
+        unitCost: dto.unitCost ?? null,
       };
       await insertOnceImmutable(
         tx,
