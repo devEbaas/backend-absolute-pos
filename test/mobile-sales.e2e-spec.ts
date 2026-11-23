@@ -315,7 +315,7 @@ describe('POST /sales (specs/22 §4.1)', () => {
     });
   });
 
-  // spec-reportes-detallados-ganancia.md R1 (desktop): el costo se congela en la línea al vender.
+  // DEC-002 / MEJ-001: el costo del producto vendido se congela en la partida al vender.
   describe('costo congelado (unitCost)', () => {
     const costOf = async (itemId: string) =>
       Number(
@@ -339,14 +339,14 @@ describe('POST /sales (specs/22 §4.1)', () => {
       expect(await costOf(body.items[0].id)).toBe(70);
     });
 
-    it('presentación sin costo: padre × unidades por paquete', async () => {
+    it('presentación sin costo: 0, no el del padre (DEC-002)', async () => {
       await h.prisma.product.update({
         where: { id: six.id },
         data: { purchaseCost: 0 },
       });
       const body = sale([line(six.id, 1, 90)]);
       await post(body).expect(201);
-      expect(await costOf(body.items[0].id)).toBe(30); // 5 × 6
+      expect(await costOf(body.items[0].id)).toBe(0);
     });
 
     it('editar el costo después no cambia el de la venta ya hecha', async () => {

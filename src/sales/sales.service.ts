@@ -20,14 +20,8 @@ const EPS = 1e-9;
 
 /** Unidad con la que se nombra el stock en los mensajes (specs/01 §9.4.3): según el tipo del producto de INVENTARIO. */
 /** Prisma devuelve Decimal; la regla de costo trabaja en number. */
-function costSource(p: {
-  purchaseCost: Prisma.Decimal;
-  unitsPerPack: Prisma.Decimal;
-}): CostSource {
-  return {
-    purchaseCost: Number(p.purchaseCost),
-    unitsPerPack: Number(p.unitsPerPack),
-  };
+function costSource(p: { purchaseCost: Prisma.Decimal }): CostSource {
+  return { purchaseCost: Number(p.purchaseCost) };
 }
 
 function unitOf(tipoVenta: string): string {
@@ -176,11 +170,9 @@ export class SalesService {
         subtotal,
         isLinked,
         inventoryProductId,
-        // Costo congelado al vender: la ganancia de esta venta no cambia si después se edita el costo del producto.
-        unitCost: saleUnitCost(
-          costSource(product),
-          isLinked ? costSource(byId.get(inventoryProductId)!) : null,
-        ),
+        // Costo congelado al vender (DEC-002): el del producto vendido. La ganancia de esta venta no cambia si
+        // después se edita el costo del producto.
+        unitCost: saleUnitCost(costSource(product)),
         unitsToDeduct: isLinked
           ? item.quantity * Number(product.unitsPerPack)
           : item.quantity,
