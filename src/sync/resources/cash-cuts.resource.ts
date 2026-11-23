@@ -37,6 +37,8 @@ export class CashCutsResource implements SyncResource<CashCutSyncItemDto> {
       transactionCount: row.transactionCount,
       totalOutflows: Number(row.totalOutflows),
       outflowCount: row.outflowCount,
+      totalCost: row.totalCost !== null ? Number(row.totalCost) : null,
+      totalProfit: row.totalProfit !== null ? Number(row.totalProfit) : null,
       notes: row.notes,
       createdAt: row.createdAt.toISOString(),
     };
@@ -66,6 +68,8 @@ export class CashCutsResource implements SyncResource<CashCutSyncItemDto> {
         transactionCount: dto.transactionCount,
         totalOutflows: dto.totalOutflows,
         outflowCount: dto.outflowCount,
+        totalCost: dto.totalCost ?? null,
+        totalProfit: dto.totalProfit ?? null,
         notes: dto.notes ?? null,
         createdAt: new Date(dto.createdAt),
       };
