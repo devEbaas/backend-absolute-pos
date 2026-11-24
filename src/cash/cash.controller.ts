@@ -43,8 +43,12 @@ export class CashController {
   }
 
   @Get('cash-sessions/:id/sales')
-  sales(@Req() req: Request, @Param('id', ParseUUIDPipe) id: string) {
-    return this.cash.sales(req.auth!, id);
+  sales(
+    @Req() req: Request,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: CutsPageQueryDto,
+  ) {
+    return this.cash.sales(req.auth!, id, query.page, query.pageSize);
   }
 
   @Get('cash-cuts')

@@ -15,6 +15,7 @@ import { CreateCashOutflowDto } from './dto/create-cash-outflow.dto';
 import { CloseWithCutDto } from './dto/close-with-cut.dto';
 import type { MobileAuthPayload } from '../common/guards/jwt-auth.guard';
 import { mobileRegisterId } from '../common/register-id.util';
+import { cutProfit, isAdminRole, sessionProfit } from './cash-profit';
 import {
   toCashCutDto,
   toCashOutflowDto,
@@ -79,21 +80,78 @@ export class CashService {
     return rows.map(toCashOutflowDto);
   }
 
-  async sales(auth: MobileAuthPayload, sessionId: string) {
+  /**
+   * Tickets del turno con sus partidas (lista colapsable del móvil en modo
+   * conectado), paginados, `createdAt` descendente, canceladas incluidas. Mismo
+   * filtro de ventas que `computeTotals`; sirve con la sesión abierta o cerrada
+   * (detalle del corte). D1 (DEC-002): `unitCost`, `estimated`, `cost` y
+   * `profit` solo hacia un administrador; para otro rol ni vienen las claves.
+   */
+  async sales(
+    auth: MobileAuthPayload,
+    sessionId: string,
+    page = 1,
+    pageSize = 15,
+  ) {
     await this.ownSessionOrThrow(auth, sessionId);
-    const rows = await this.prisma.sale.findMany({
-      where: { businessId: auth.businessId, sessionId },
-      orderBy: { createdAt: 'desc' },
-      include: { _count: { select: { items: true } } },
+    const withProfit = isAdminRole(auth.role);
+    const where = { businessId: auth.businessId, sessionId };
+    const [total, rows] = await Promise.all([
+      this.prisma.sale.count({ where }),
+      this.prisma.sale.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          user: { select: { name: true } },
+          items: {
+            include: {
+              product: {
+                select: { name: true, tipoVenta: true, purchaseCost: true },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+    const items = rows.map((row) => {
+      const lines = row.items.map((it) => {
+        const line = {
+          productName: it.linkedProductName ?? it.product.name,
+          quantity: Number(it.quantity),
+          unitPrice: Number(it.unitPrice),
+          subtotal: Number(it.subtotal),
+          tipoVenta: it.product.tipoVenta,
+        };
+        if (!withProfit) return line;
+        return {
+          ...line,
+          unitCost: Number(it.unitCost ?? it.product.purchaseCost),
+          estimated: it.unitCost === null,
+        };
+      });
+      const ticket = {
+        id: row.id,
+        createdAt: row.createdAt.toISOString(),
+        total: Number(row.total),
+        discountAmount: Number(row.discountAmount),
+        paymentMethod: row.paymentMethod,
+        cancelled: row.cancelled,
+        registerId: row.registerId ?? null,
+        cashierName: row.user?.name ?? null,
+        items: lines,
+      };
+      if (!withProfit) return ticket;
+      const cost = round2(
+        (lines as { unitCost: number; quantity: number }[]).reduce(
+          (sum, l) => sum + l.unitCost * l.quantity,
+          0,
+        ),
+      );
+      return { ...ticket, cost, profit: round2(ticket.total - cost) };
     });
-    return rows.map((row) => ({
-      id: row.id,
-      total: Number(row.total),
-      paymentMethod: row.paymentMethod,
-      cancelled: row.cancelled,
-      createdAt: row.createdAt.toISOString(),
-      itemsCount: row._count.items,
-    }));
+    return { items, page, pageSize, total };
   }
 
   /** Los cortes **propios**: del usuario del token y de una sesión abierta en el dispositivo del token. */
@@ -112,7 +170,18 @@ export class CashService {
         include: { user: { select: { name: true } }, session: true },
       }),
     ]);
-    return { items: rows.map(toCashCutDto), page, pageSize, total };
+    const withProfit = isAdminRole(auth.role);
+    const items = await Promise.all(
+      rows.map(async (row) =>
+        withProfit
+          ? {
+              ...toCashCutDto(row),
+              profit: await cutProfit(this.prisma, auth.businessId, row),
+            }
+          : toCashCutDto(row),
+      ),
+    );
+    return { items, page, pageSize, total };
   }
 
   // — Escrituras móviles (specs/22 §4.2, §4.3) —
@@ -354,8 +423,11 @@ export class CashService {
         );
       }
       if (session.userId !== userId) throw notSessionOwner();
+      const cutDto = toCashCutDto(cut);
       return {
-        cut: toCashCutDto(cut),
+        cut: isAdminRole(auth.role)
+          ? { ...cutDto, profit: await cutProfit(tx, businessId, cut) }
+          : cutDto,
         session: toCashSessionDto({ ...cut.session, user: cut.user }),
       };
     }
@@ -400,20 +472,31 @@ export class CashService {
       data: { status: 'closed', closedAt: now, updatedAt: now },
       include: { user: { select: { name: true } } },
     });
+    // Ganancia del corte congelada al cerrar (DEC-002): no cambia si después
+    // se cancela una venta del turno, igual que total_sales.
+    const profit = await sessionProfit(tx, businessId, sessionId);
+    const frozen = await tx.cashCut.update({
+      where: { id: cut.id },
+      data: { totalCost: profit.cogs, totalProfit: profit.grossProfit },
+      include: { user: { select: { name: true } } },
+    });
     await tx.syncLogEntry.createMany({
       data: [
         { businessId, tableName: 'cashCuts', rowId: cut.id },
         { businessId, tableName: 'cashSessions', rowId: sessionId },
       ],
     });
+    const cutDto = toCashCutDto({ ...frozen, session: closed });
     return {
-      cut: toCashCutDto({ ...cut, session: closed }),
+      cut: isAdminRole(auth.role)
+        ? { ...cutDto, profit: await cutProfit(tx, businessId, frozen) }
+        : cutDto,
       session: toCashSessionDto(closed),
     };
   }
 
   private async replayCut(
-    db: Pick<Prisma.TransactionClient, 'cashCut'>,
+    db: Pick<Prisma.TransactionClient, 'cashCut' | 'sale' | 'saleItem'>,
     auth: MobileAuthPayload,
     id: string,
   ) {
@@ -428,8 +511,11 @@ export class CashService {
     ) {
       throw idInUse();
     }
+    const cutDto = toCashCutDto(existing);
     return {
-      cut: toCashCutDto(existing),
+      cut: isAdminRole(auth.role)
+        ? { ...cutDto, profit: await cutProfit(db, auth.businessId, existing) }
+        : cutDto,
       session: toCashSessionDto({ ...existing.session, user: existing.user }),
     };
   }
