@@ -493,7 +493,7 @@ describe('Lecturas para el cajero (specs/22 §3)', () => {
       ]);
     });
 
-    it('lista las ventas de la sesión con su número de líneas', async () => {
+    it('lista los tickets de la sesión con sus partidas; al cajero sin costo ni ganancia (D1)', async () => {
       const b = seed.business.id;
       const s = await seedOpenSession(h.prisma, b, anaId, seed.device.id);
       const venta = await seedSale(h.prisma, {
@@ -521,16 +521,32 @@ describe('Lecturas para el cajero (specs/22 §3)', () => {
         total: 5,
       }); // de otra sesión: no sale
       const res = await get(`/cash-sessions/${s.id}/sales`).expect(200);
-      expect(res.body).toEqual([
-        {
-          id: venta.id,
-          total: 90,
-          paymentMethod: 'efectivo',
-          cancelled: false,
-          createdAt: venta.createdAt.toISOString(),
-          itemsCount: 1,
-        },
-      ]);
+      expect(res.body).toEqual({
+        items: [
+          {
+            id: venta.id,
+            createdAt: venta.createdAt.toISOString(),
+            total: 90,
+            discountAmount: 0,
+            paymentMethod: 'efectivo',
+            cancelled: false,
+            registerId: 'PRINCIPAL',
+            cashierName: 'Ana Cajera',
+            items: [
+              {
+                productName: 'Agua',
+                quantity: 2,
+                unitPrice: 45,
+                subtotal: 90,
+                tipoVenta: 'UNIDAD',
+              },
+            ],
+          },
+        ],
+        page: 1,
+        pageSize: 15,
+        total: 1,
+      });
     });
   });
 
